@@ -1,3 +1,14 @@
+/**
+ * @dev FIXTURES DE DESENVOLVIMENTO — NÃO IMPORTAR EM CÓDIGO DE PRODUÇÃO
+ *
+ * Este arquivo contém dados iniciais usados apenas para referência local e
+ * eventual uso em testes automatizados futuros (ex: Vitest/Jest com mocks).
+ *
+ * O frontend de produção NUNCA deve importar este arquivo.
+ * Todos os dados de runtime vêm exclusivamente da API (/api/*) → MariaDB.
+ *
+ * Para popular o banco de dados use: npm run db:seed
+ */
 import { FleetState } from "../../domain/types";
 
 export const initialFleetState: FleetState = {

@@ -1,21 +1,27 @@
-# Controle de Frota de Veículos
+# Controle de Frota de Veiculos
 
-MVP web para controle de retirada, devolução e auditoria de veículos corporativos. A aplicação atende uma frota pequena, com perfis de funcionário, gestor e administrador, e está preparada para evoluir de dados mockados para uma API REST com MariaDB.
+MVP web para controle de retirada, devolucao e auditoria de veiculos corporativos. O fluxo da aplicacao e:
+
+```text
+Frontend React -> API Node/Express -> MariaDB
+```
+
+O React nao conecta diretamente ao MariaDB. Credenciais de banco ficam somente no backend, via variaveis de ambiente.
 
 ## Funcionalidades
 
-- Login fake para desenvolvimento com validação de e-mail corporativo.
-- Dashboard com veículos disponíveis e em uso.
-- Retirada de veículo com validação de KM, cliente, origem, destino e finalidade.
-- Devolução de veículo com atualização de quilometragem.
-- Solicitação de correção de KM quando há divergência no odômetro.
-- Aprovação ou rejeição de correções por gestor/admin.
-- Histórico de uso com filtros e exportação CSV.
-- Gestão de veículos, usuários e clientes sugeridos.
-- Configuração admin para permitir ou bloquear que funcionários vejam carros em uso.
-- Exibição do nome de quem está usando um veículo em uso.
-- Log de auditoria mockado.
-- Rodapé com espaço para marca da empresa.
+- Login por usuarios da aplicacao com senha hasheada e JWT.
+- Dashboard com veiculos disponiveis e em uso.
+- Retirada de veiculo com validacao de KM, cliente, origem, destino e finalidade.
+- Devolucao de veiculo com atualizacao de quilometragem.
+- Solicitacao de correcao de KM quando ha divergencia no odometro.
+- Aprovacao ou rejeicao de correcoes por gestor/admin.
+- Historico de uso com filtros e exportacao CSV.
+- Gestao de veiculos, usuarios e clientes sugeridos.
+- Configuracao admin para permitir ou bloquear que funcionarios vejam carros em uso.
+- Exibicao do nome de quem esta usando um veiculo em uso.
+- Log de auditoria persistido no MariaDB.
+- Rodape com espaco para marca da empresa.
 
 ## Stack
 
@@ -26,19 +32,21 @@ MVP web para controle de retirada, devolução e auditoria de veículos corporat
 - React Hook Form
 - Zod
 - TanStack Table
-- CSS puro com variáveis e layout responsivo
-
-O frontend agora consome uma API Node/Express local em `/api`. A API persiste os dados no MariaDB e mantém a separação entre domínio, regras, schemas, interface e dados.
+- Node.js + Express
+- MariaDB
+- bcryptjs
+- jsonwebtoken
+- CSS puro com variaveis e layout responsivo
 
 ## Rodando localmente
 
-Instale as dependências:
+Instale as dependencias:
 
 ```bash
 npm install
 ```
 
-Configure a conexão com o MariaDB no `.env`, usando `.env.example` como base:
+Configure a conexao com o MariaDB e o segredo JWT no `.env`, usando `.env.example` como base:
 
 ```env
 DB_HOST=127.0.0.1
@@ -46,6 +54,11 @@ DB_PORT=3307
 DB_NAME=fleet_control
 DB_USER=app_user
 DB_PASSWORD=change-me
+
+API_PORT=3333
+VITE_API_BASE_URL=/api
+JWT_SECRET=change-this-dev-secret
+JWT_EXPIRES_IN=8h
 
 DB_ADMIN_USER=root
 DB_ADMIN_PASSWORD=
@@ -57,7 +70,7 @@ Prepare o banco de dados:
 npm run db:apply
 ```
 
-Esse comando aplica, em ordem, os scripts oficiais de banco:
+Esse comando aplica, em ordem:
 
 ```text
 db/sql/000_create_database.sql
@@ -65,7 +78,7 @@ db/sql/001_create_schema.sql
 db/sql/002_seed_dev.sql
 ```
 
-O script `000_create_database.sql` usa `DB_ADMIN_USER` e `DB_ADMIN_PASSWORD`, pois cria o banco e concede permissões. Os scripts `001_create_schema.sql` e `002_seed_dev.sql` usam `DB_USER`, `DB_PASSWORD` e `DB_NAME`.
+O script `000_create_database.sql` usa `DB_ADMIN_USER` e `DB_ADMIN_PASSWORD`, pois cria o banco e concede permissoes. Os scripts `001_create_schema.sql` e `002_seed_dev.sql` usam `DB_USER`, `DB_PASSWORD` e `DB_NAME`.
 
 Inicie o servidor de desenvolvimento:
 
@@ -78,19 +91,19 @@ Esse comando sobe dois processos:
 - API local em `http://127.0.0.1:3333`
 - Frontend Vite em `http://localhost:5173`
 
-A aplicação ficará disponível em:
+## Usuarios de desenvolvimento
+
+Os usuarios abaixo sao criados por `db/sql/002_seed_dev.sql`. Todos usam a senha de desenvolvimento:
 
 ```text
-http://localhost:5173/
+Senha@123
 ```
 
-## Usuários mockados
-
-Qualquer senha preenchida é aceita nesta fase.
-
-- Funcionário: `ricardo@empresa.com.br`
+- Funcionario: `ricardo@empresa.com.br`
 - Gestor: `patricia@empresa.com.br`
 - Admin: `admin@empresa.com.br`
+
+As senhas sao armazenadas no banco apenas como hash bcrypt no campo `users.password_hash`.
 
 ## Scripts
 
@@ -105,13 +118,13 @@ npm run db:schema
 npm run db:seed
 ```
 
-Observação: o script `npm run lint` está reservado no `package.json`, mas a configuração ESLint ainda não foi adicionada.
+Observacao: o script `npm run lint` esta reservado no `package.json`, mas a configuracao ESLint ainda nao foi adicionada.
 
 ## Banco MariaDB de desenvolvimento
 
-O projeto consegue preparar e popular uma instância MariaDB já existente. A aplicação não sobe o MariaDB sozinha nesta fase, mas fornece os scripts para criar o banco, criar tabelas e inserir dados iniciais.
+O projeto consegue preparar e popular uma instancia MariaDB ja existente. A aplicacao nao sobe o MariaDB sozinha nesta fase, mas fornece scripts para criar o banco, criar tabelas e inserir dados iniciais.
 
-Configure a conexão no `.env` antes de executar os comandos. Use `.env.example` como referência e mantenha credenciais reais fora do Git.
+Configure a conexao no `.env` antes de executar os comandos. Use `.env.example` como referencia e mantenha credenciais reais fora do Git.
 
 Os scripts SQL oficiais ficam em:
 
@@ -128,13 +141,7 @@ Para configurar tudo pelo app/script npm:
 npm run db:apply
 ```
 
-Esse comando tenta executar:
-
-- `000_create_database.sql`: cria o banco e concede permissões, usando usuário administrativo.
-- `001_create_schema.sql`: cria tabelas, constraints e índices.
-- `002_seed_dev.sql`: popula dados iniciais de desenvolvimento.
-
-Se o banco já existe e o schema já foi aplicado, rode apenas uma etapa específica:
+Se o banco ja existe e o schema ja foi aplicado, rode apenas uma etapa especifica:
 
 ```bash
 npm run db:schema
@@ -143,39 +150,35 @@ npm run db:seed
 
 Para resetar os dados de desenvolvimento, execute `npm run db:seed` novamente. Os inserts usam IDs fixos e `ON DUPLICATE KEY UPDATE`.
 
-Detalhes operacionais de ambiente ficam documentados em `docs/database-dev.md`. A pasta `docs/` está ignorada pelo Git.
+Detalhes operacionais de ambiente ficam documentados em `docs/database-dev.md`. A pasta `docs/` esta ignorada pelo Git.
 
-## Usando Docker futuramente
+## Mocks e fixtures
 
-Ainda não existe `Dockerfile` nem `docker-compose.yml` neste MVP. Quando a aplicação entrar na etapa de containerização, o fluxo esperado será:
+O runtime da aplicacao nao depende de `src/data/mock/*` nem possui fallback para dados mockados quando a API falha. Fixtures antigas de desenvolvimento devem ficar apenas em `src/dev/fixtures` ou `src/test/fixtures`, sem import em codigo de producao.
+
+## Docker futuramente
+
+Ainda nao existe `Dockerfile` nem `docker-compose.yml` neste MVP. Quando a aplicacao entrar na etapa de containerizacao, o fluxo esperado sera:
 
 1. Criar um `Dockerfile` para empacotar frontend e API Node/Express.
-2. Criar um `docker-compose.yml` para subir app e MariaDB quando necessário.
-3. Passar as configurações por um arquivo `.env` informado ao Docker ou pelo ambiente do host.
-4. Usar as mesmas variáveis já consumidas hoje pelo app: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_ADMIN_USER`, `DB_ADMIN_PASSWORD`, `API_PORT` e `VITE_API_BASE_URL`.
+2. Criar um `docker-compose.yml` para subir app e MariaDB quando necessario.
+3. Passar configuracoes por um arquivo `.env` informado ao Docker ou pelo ambiente do host.
+4. Usar variaveis de ambiente, sem senhas reais hardcoded.
 5. Executar:
 
 ```bash
 docker compose up -d --build
 ```
 
-Exemplo conceitual de serviços futuros:
-
-```text
-app: React/Vite + API Node/Express
-db: mariadb:11.4
-```
-
-O backend local atual já usa MariaDB e lê a configuração via variáveis de ambiente. No Docker, a ideia é manter esse mesmo contrato: o container recebe o `.env`, sobe a aplicação e aponta para o banco configurado.
-
-## Documentação local
+## Documentacao local
 
 - `docs/prompt.md`: escopo original do MVP.
 - `docs/status-mvp.md`: status da primeira entrega.
-- `docs/status2-mvp.md`: evolução com MariaDB, configuração admin e ajustes de layout.
-- `docs/layout-review-stitch.md`: revisão do layout com base no Stitch.
-- `docs/database-dev.md`: dados da instância MariaDB de desenvolvimento.
+- `docs/status2-mvp.md`: evolucao com MariaDB, configuracao admin e ajustes de layout.
+- `docs/layout-review-stitch.md`: revisao do layout com base no Stitch.
+- `docs/database-dev.md`: dados da instancia MariaDB de desenvolvimento.
+- `docs/botao-detalhes-dashboard.md`: decisao sobre o botao de detalhes no dashboard.
 
-## Referência visual
+## Referencia visual
 
-O layout segue os modelos gerados no Stitch em `stitch/corporate-fleet-control-system/`, com foco em interface operacional, tabelas densas, formulários claros, paleta azul/slate e experiência responsiva.
+O layout segue os modelos gerados no Stitch em `stitch/corporate-fleet-control-system/`, com foco em interface operacional, tabelas densas, formularios claros, paleta azul/slate e experiencia responsiva.

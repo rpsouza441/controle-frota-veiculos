@@ -3,6 +3,7 @@ import { useAuth } from "../../features/auth/AuthContext";
 import { UserRole } from "../../domain/types";
 import { roleLabels } from "../../utils/labels";
 import { Button } from "../ui/Button";
+import { useFleet } from "../../data/repositories/FleetContext";
 
 const navItems: Array<{ to: string; label: string; roles: UserRole[] }> = [
   { to: "/", label: "Início", roles: ["EMPLOYEE", "MANAGER", "ADMIN"] },
@@ -17,6 +18,7 @@ const navItems: Array<{ to: string; label: string; roles: UserRole[] }> = [
 
 export function AppLayout() {
   const { user, logout } = useAuth();
+  const { error, refresh } = useFleet();
   const navigate = useNavigate();
   const visibleItems = navItems.filter((item) => user && item.roles.includes(user.role));
 
@@ -44,6 +46,11 @@ export function AppLayout() {
           ))}
         </nav>
         <main className="content">
+          {error ? (
+            <div className="alert danger api-error-banner">
+              {error} <button type="button" onClick={() => void refresh()}>Tentar novamente</button>
+            </div>
+          ) : null}
           <Outlet />
         </main>
       </div>

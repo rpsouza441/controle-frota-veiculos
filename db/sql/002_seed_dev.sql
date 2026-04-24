@@ -5,13 +5,14 @@ INSERT INTO teams (id, name, active) VALUES
 ON DUPLICATE KEY UPDATE name = VALUES(name), active = VALUES(active);
 
 INSERT INTO users (id, name, email, password_hash, role, team_id, active) VALUES
-  ('u-employee', 'Ricardo Lima', 'ricardo@empresa.com.br', NULL, 'EMPLOYEE', 'team-sales', TRUE),
-  ('u-employee-2', 'Marina Costa', 'marina@empresa.com.br', NULL, 'EMPLOYEE', 'team-ops', TRUE),
-  ('u-manager', 'Patricia Rocha', 'patricia@empresa.com.br', NULL, 'MANAGER', 'team-ops', TRUE),
-  ('u-admin', 'Admin Frota', 'admin@empresa.com.br', NULL, 'ADMIN', 'team-admin', TRUE),
-  ('u-inactive', 'Usuario Inativo', 'inativo@empresa.com.br', NULL, 'EMPLOYEE', 'team-sales', FALSE)
+  ('u-employee', 'Ricardo Lima', 'ricardo@empresa.com.br', '$2b$10$SLtpvJB2LODhZPPv7l8RiOmZnofHHeLafckNRWRGhRRzMo5E4GCrC', 'EMPLOYEE', 'team-sales', TRUE),
+  ('u-employee-2', 'Marina Costa', 'marina@empresa.com.br', '$2b$10$SLtpvJB2LODhZPPv7l8RiOmZnofHHeLafckNRWRGhRRzMo5E4GCrC', 'EMPLOYEE', 'team-ops', TRUE),
+  ('u-manager', 'Patricia Rocha', 'patricia@empresa.com.br', '$2b$10$SLtpvJB2LODhZPPv7l8RiOmZnofHHeLafckNRWRGhRRzMo5E4GCrC', 'MANAGER', 'team-ops', TRUE),
+  ('u-admin', 'Admin Frota', 'admin@empresa.com.br', '$2b$10$SLtpvJB2LODhZPPv7l8RiOmZnofHHeLafckNRWRGhRRzMo5E4GCrC', 'ADMIN', 'team-admin', TRUE),
+  ('u-inactive', 'Usuario Inativo', 'inativo@empresa.com.br', '$2b$10$SLtpvJB2LODhZPPv7l8RiOmZnofHHeLafckNRWRGhRRzMo5E4GCrC', 'EMPLOYEE', 'team-sales', FALSE)
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),
+  password_hash = VALUES(password_hash),
   role = VALUES(role),
   team_id = VALUES(team_id),
   active = VALUES(active);

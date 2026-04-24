@@ -10,13 +10,14 @@ import {
   Vehicle,
   VehicleUsage,
 } from "../../domain/types";
+import { authChangedEvent, getAuthToken } from "../../services/api/authToken";
 
 type FleetContextValue = {
   state: FleetState;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  findUserByEmail: (email: string) => User | undefined;
+
   addAuditLog: (actorUserId: string, action: AuditAction, entity: string, summary: string) => Promise<void>;
   createWithdrawal: (input: Omit<VehicleUsage, "id" | "status">) => Promise<void>;
   closeUsage: (usageId: string, returnKm: number, returnAt: string, returnNote?: string) => Promise<void>;
@@ -47,8 +48,13 @@ function newId(prefix: string) {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
     ...options,
   });
   if (!response.ok) {
@@ -65,6 +71,12 @@ export function FleetProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    if (!getAuthToken()) {
+      setState(emptyFleetState);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -78,6 +90,8 @@ export function FleetProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     void refresh();
+    window.addEventListener(authChangedEvent, refresh);
+    return () => window.removeEventListener(authChangedEvent, refresh);
   }, [refresh]);
 
   const value = useMemo<FleetContextValue>(
@@ -86,9 +100,7 @@ export function FleetProvider({ children }: PropsWithChildren) {
       loading,
       error,
       refresh,
-      findUserByEmail(email) {
-        return state.users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase());
-      },
+
       async addAuditLog(actorUserId, action, entity, summary) {
         await request("/audit-logs", {
           method: "POST",

@@ -1,52 +1,89 @@
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { User } from "../../domain/types";
-import { useFleet } from "../../data/repositories/FleetContext";
+import { authChangedEvent, clearAuthToken, getAuthToken, notifyAuthChanged, setAuthToken } from "../../services/api/authToken";
 
 type AuthContextValue = {
   user: User | null;
+  loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
+type LoginResponse = {
+  token: string;
+  user: User;
+};
+
 const AuthContext = createContext<AuthContextValue | null>(null);
-const STORAGE_KEY = "fleetmanager:userEmail";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
+async function loginWithPassword(email: string, password: string): Promise<LoginResponse> {
+  const response = await fetch(`${API_BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.message || "Falha no login.");
+  }
+  return response.json() as Promise<LoginResponse>;
+}
+
+async function fetchCurrentUser(token: string): Promise<User> {
+  const response = await fetch(`${API_BASE}/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.message || "Sessao invalida.");
+  }
+  return response.json() as Promise<User>;
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
-  const fleet = useFleet();
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const rehydrate = useCallback(async () => {
+    const token = getAuthToken();
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const found = await fetchCurrentUser(token);
+      setUser(found);
+    } catch {
+      clearAuthToken();
+      setUser(null);
+      notifyAuthChanged();
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const email = localStorage.getItem(STORAGE_KEY);
-    if (!email) return;
-    const storedUser = fleet.findUserByEmail(email);
-    if (storedUser?.active) setUser(storedUser);
-  }, [fleet]);
+    void rehydrate();
+  }, [rehydrate]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      async login(email) {
-        const response = await fetch(`${API_BASE}/auth/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-        if (!response.ok) {
-          const body = await response.json().catch(() => null);
-          throw new Error(body?.message || "Falha no login.");
-        }
-        const found = (await response.json()) as User;
-        localStorage.setItem(STORAGE_KEY, found.email);
+      loading,
+      async login(email, password) {
+        const { token, user: found } = await loginWithPassword(email, password);
+        setAuthToken(token);
         setUser(found);
-        await fleet.refresh();
+        notifyAuthChanged();
       },
       logout() {
-        localStorage.removeItem(STORAGE_KEY);
+        clearAuthToken();
         setUser(null);
+        notifyAuthChanged();
       },
     }),
-    [fleet, user],
+    [loading, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
