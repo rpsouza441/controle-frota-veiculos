@@ -11,6 +11,7 @@ import { VehiclesPage } from "../features/vehicles/VehiclesPage";
 import { UsersPage } from "../features/users/UsersPage";
 import { ClientsPage } from "../features/clients/ClientsPage";
 import { AuditPage } from "../features/audit/AuditPage";
+import { SettingsPage } from "../features/settings/SettingsPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
               { path: "/usuarios", element: <UsersPage /> },
               { path: "/clientes", element: <ClientsPage /> },
               { path: "/auditoria", element: <AuditPage /> },
+              { path: "/configuracoes", element: <SettingsPage /> },
             ],
           },
         ],

@@ -82,4 +82,7 @@ export const initialFleetState: FleetState = {
       summary: "Devolucao do veiculo SPQ5D72 com KM 58720.",
     },
   ],
+  settings: {
+    employeesCanSeeInUseVehicles: false,
+  },
 };

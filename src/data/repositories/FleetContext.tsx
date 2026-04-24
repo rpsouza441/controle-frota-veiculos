@@ -1,6 +1,7 @@
 import { createContext, PropsWithChildren, useContext, useMemo, useState } from "react";
 import {
   AuditAction,
+  AppSettings,
   Client,
   CorrectionStatus,
   FleetState,
@@ -24,6 +25,7 @@ type FleetContextValue = {
   upsertUser: (user: User) => void;
   upsertClient: (client: Client) => void;
   ensureClients: (names: string[]) => Client[];
+  updateSettings: (settings: AppSettings, actorUserId: string) => void;
 };
 
 const FleetContext = createContext<FleetContextValue | null>(null);
@@ -203,6 +205,23 @@ export function FleetProvider({ children }: PropsWithChildren) {
           setState((current) => ({ ...current, clients: [...current.clients, ...missing] }));
         }
         return [...existing, ...missing];
+      },
+      updateSettings(settings, actorUserId) {
+        setState((current) => ({
+          ...current,
+          settings,
+          auditLogs: [
+            {
+              id: newId("audit"),
+              createdAt: nowLocal(),
+              actorUserId,
+              action: "SETTINGS_UPDATE",
+              entity: "AppSettings",
+              summary: `Configurações atualizadas: funcionários ${settings.employeesCanSeeInUseVehicles ? "podem" : "não podem"} ver veículos em uso.`,
+            },
+            ...current.auditLogs,
+          ],
+        }));
       },
     }),
     [state],

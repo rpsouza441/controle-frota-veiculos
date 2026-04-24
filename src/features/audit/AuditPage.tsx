@@ -14,6 +14,7 @@ const actionLabels: Record<AuditLogEntry["action"], string> = {
   CLIENT_UPSERT: "Criação/edição de cliente",
   ODOMETER_CORRECTION_REQUEST: "Solicitação de correção de KM",
   ODOMETER_CORRECTION_REVIEW: "Aprovação/rejeição de correção",
+  SETTINGS_UPDATE: "Alteração de configurações",
 };
 
 export function AuditPage() {

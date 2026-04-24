@@ -12,6 +12,7 @@ const navItems: Array<{ to: string; label: string; roles: UserRole[] }> = [
   { to: "/usuarios", label: "Usuários", roles: ["ADMIN"] },
   { to: "/clientes", label: "Clientes", roles: ["ADMIN"] },
   { to: "/auditoria", label: "Auditoria", roles: ["ADMIN"] },
+  { to: "/configuracoes", label: "Configurações", roles: ["ADMIN"] },
 ];
 
 export function AppLayout() {
@@ -46,6 +47,10 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <footer className="app-footer">
+        <span>FleetManager</span>
+        <strong>Espaço para sua marca</strong>
+      </footer>
     </div>
   );
 }

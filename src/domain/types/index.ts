@@ -10,7 +10,8 @@ export type AuditAction =
   | "USER_UPSERT"
   | "CLIENT_UPSERT"
   | "ODOMETER_CORRECTION_REQUEST"
-  | "ODOMETER_CORRECTION_REVIEW";
+  | "ODOMETER_CORRECTION_REVIEW"
+  | "SETTINGS_UPDATE";
 
 export interface Team {
   id: string;
@@ -83,6 +84,10 @@ export interface AuditLogEntry {
   summary: string;
 }
 
+export interface AppSettings {
+  employeesCanSeeInUseVehicles: boolean;
+}
+
 export interface FleetState {
   users: User[];
   teams: Team[];
@@ -91,4 +96,5 @@ export interface FleetState {
   clients: Client[];
   correctionRequests: OdometerCorrectionRequest[];
   auditLogs: AuditLogEntry[];
+  settings: AppSettings;
 }
