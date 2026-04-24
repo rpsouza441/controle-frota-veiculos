@@ -43,7 +43,7 @@ export function WithdrawalPage() {
     }
   }, [selectedVehicle, withdrawalForm]);
 
-  function onWithdrawal(data: WithdrawalFormData) {
+  async function onWithdrawal(data: WithdrawalFormData) {
     const vehicle = fleet.state.vehicles.find((item) => item.id === data.vehicleId);
     if (!vehicle || !user) return;
     if (data.withdrawalKm !== vehicle.currentKm) {
@@ -51,13 +51,13 @@ export function WithdrawalPage() {
       correctionForm.reset({ vehicleId: vehicle.id, informedKm: data.withdrawalKm, systemKm: vehicle.currentKm, reason: "" });
       return;
     }
-    const clients = fleet.ensureClients(data.clientsText.split(","));
-    fleet.createWithdrawal({
+    const clientNames = data.clientsText.split(",").map((client) => client.trim()).filter(Boolean);
+    await fleet.createWithdrawal({
       vehicleId: data.vehicleId,
       userId: user.id,
       teamId: user.teamId,
-      clientIds: clients.map((client) => client.id),
-      clientNames: clients.map((client) => client.name),
+      clientIds: [],
+      clientNames,
       origin: data.origin,
       destination: data.destination,
       purpose: data.purpose,
@@ -67,9 +67,9 @@ export function WithdrawalPage() {
     navigate("/");
   }
 
-  function onCorrection(data: CorrectionFormData) {
+  async function onCorrection(data: CorrectionFormData) {
     if (!user) return;
-    fleet.createCorrectionRequest({ ...data, requestedByUserId: user.id });
+    await fleet.createCorrectionRequest({ ...data, requestedByUserId: user.id });
     navigate("/");
   }
 

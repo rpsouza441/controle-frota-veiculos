@@ -10,6 +10,7 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const STORAGE_KEY = "fleetmanager:userEmail";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const fleet = useFleet();
@@ -26,12 +27,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
     () => ({
       user,
       async login(email) {
-        const found = fleet.findUserByEmail(email);
-        if (!found) throw new Error("Usuario mockado nao encontrado.");
-        if (!found.active) throw new Error("Usuario inativo nao pode acessar.");
+        const response = await fetch(`${API_BASE}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          throw new Error(body?.message || "Falha no login.");
+        }
+        const found = (await response.json()) as User;
         localStorage.setItem(STORAGE_KEY, found.email);
         setUser(found);
-        fleet.addAuditLog(found.id, "LOGIN", "Auth", `Login fake realizado por ${found.email}.`);
+        await fleet.refresh();
       },
       logout() {
         localStorage.removeItem(STORAGE_KEY);

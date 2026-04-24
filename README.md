@@ -28,7 +28,7 @@ MVP web para controle de retirada, devolução e auditoria de veículos corporat
 - TanStack Table
 - CSS puro com variáveis e layout responsivo
 
-O frontend ainda usa repository mockado em memória. A estrutura de domínio, regras, schemas e dados foi separada para facilitar a troca futura por API REST.
+O frontend agora consome uma API Node/Express local em `/api`. A API persiste os dados no MariaDB e mantém a separação entre domínio, regras, schemas, interface e dados.
 
 ## Rodando localmente
 
@@ -38,11 +38,45 @@ Instale as dependências:
 npm install
 ```
 
+Configure a conexão com o MariaDB no `.env`, usando `.env.example` como base:
+
+```env
+DB_HOST=127.0.0.1
+DB_PORT=3307
+DB_NAME=fleet_control
+DB_USER=app_user
+DB_PASSWORD=change-me
+
+DB_ADMIN_USER=root
+DB_ADMIN_PASSWORD=
+```
+
+Prepare o banco de dados:
+
+```bash
+npm run db:apply
+```
+
+Esse comando aplica, em ordem, os scripts oficiais de banco:
+
+```text
+db/sql/000_create_database.sql
+db/sql/001_create_schema.sql
+db/sql/002_seed_dev.sql
+```
+
+O script `000_create_database.sql` usa `DB_ADMIN_USER` e `DB_ADMIN_PASSWORD`, pois cria o banco e concede permissões. Os scripts `001_create_schema.sql` e `002_seed_dev.sql` usam `DB_USER`, `DB_PASSWORD` e `DB_NAME`.
+
 Inicie o servidor de desenvolvimento:
 
 ```bash
 npm run dev
 ```
+
+Esse comando sobe dois processos:
+
+- API local em `http://127.0.0.1:3333`
+- Frontend Vite em `http://localhost:5173`
 
 A aplicação ficará disponível em:
 
@@ -62,47 +96,64 @@ Qualquer senha preenchida é aceita nesta fase.
 
 ```bash
 npm run dev
+npm run dev:api
+npm run dev:web
 npm run build
 npm run preview
+npm run db:apply
+npm run db:schema
+npm run db:seed
 ```
 
 Observação: o script `npm run lint` está reservado no `package.json`, mas a configuração ESLint ainda não foi adicionada.
 
 ## Banco MariaDB de desenvolvimento
 
-Há uma instância MariaDB para desenvolvimento:
+O projeto consegue preparar e popular uma instância MariaDB já existente. A aplicação não sobe o MariaDB sozinha nesta fase, mas fornece os scripts para criar o banco, criar tabelas e inserir dados iniciais.
 
-- Imagem: `mariadb:11.4`
-- Host/IP: `192.168.1.242`
-- Porta: `3307`
-- Usuário: `app_user`
-- Banco sugerido: `fleet_control`
+Configure a conexão no `.env` antes de executar os comandos. Use `.env.example` como referência e mantenha credenciais reais fora do Git.
 
-Os scripts SQL ficam em:
+Os scripts SQL oficiais ficam em:
 
 ```text
 db/sql/
+  000_create_database.sql
   001_create_schema.sql
   002_seed_dev.sql
 ```
 
-Execução sugerida:
+Para configurar tudo pelo app/script npm:
 
 ```bash
-mysql -h 192.168.1.242 -P 3307 -u app_user -p < db/sql/001_create_schema.sql
-mysql -h 192.168.1.242 -P 3307 -u app_user -p fleet_control < db/sql/002_seed_dev.sql
+npm run db:apply
 ```
 
-A senha e mais detalhes operacionais ficam documentados em `docs/database-dev.md`. A pasta `docs/` está ignorada pelo Git.
+Esse comando tenta executar:
+
+- `000_create_database.sql`: cria o banco e concede permissões, usando usuário administrativo.
+- `001_create_schema.sql`: cria tabelas, constraints e índices.
+- `002_seed_dev.sql`: popula dados iniciais de desenvolvimento.
+
+Se o banco já existe e o schema já foi aplicado, rode apenas uma etapa específica:
+
+```bash
+npm run db:schema
+npm run db:seed
+```
+
+Para resetar os dados de desenvolvimento, execute `npm run db:seed` novamente. Os inserts usam IDs fixos e `ON DUPLICATE KEY UPDATE`.
+
+Detalhes operacionais de ambiente ficam documentados em `docs/database-dev.md`. A pasta `docs/` está ignorada pelo Git.
 
 ## Usando Docker futuramente
 
 Ainda não existe `Dockerfile` nem `docker-compose.yml` neste MVP. Quando a aplicação entrar na etapa de containerização, o fluxo esperado será:
 
-1. Criar um `Dockerfile` para build do frontend com Node e servir os arquivos estáticos com Nginx ou outro servidor HTTP.
-2. Criar um `docker-compose.yml` para subir frontend, API futura e MariaDB quando necessário.
-3. Configurar variáveis de ambiente para URL da API e conexão com banco.
-4. Executar:
+1. Criar um `Dockerfile` para empacotar frontend e API Node/Express.
+2. Criar um `docker-compose.yml` para subir app e MariaDB quando necessário.
+3. Passar as configurações por um arquivo `.env` informado ao Docker ou pelo ambiente do host.
+4. Usar as mesmas variáveis já consumidas hoje pelo app: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_ADMIN_USER`, `DB_ADMIN_PASSWORD`, `API_PORT` e `VITE_API_BASE_URL`.
+5. Executar:
 
 ```bash
 docker compose up -d --build
@@ -111,12 +162,11 @@ docker compose up -d --build
 Exemplo conceitual de serviços futuros:
 
 ```text
-frontend: React/Vite build estático
-api: backend REST futuro
+app: React/Vite + API Node/Express
 db: mariadb:11.4
 ```
 
-Enquanto não houver backend real, o frontend continua funcionando localmente com dados mockados.
+O backend local atual já usa MariaDB e lê a configuração via variáveis de ambiente. No Docker, a ideia é manter esse mesmo contrato: o container recebe o `.env`, sobe a aplicação e aponta para o banco configurado.
 
 ## Documentação local
 

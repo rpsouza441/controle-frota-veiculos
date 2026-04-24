@@ -119,10 +119,10 @@ CREATE TABLE IF NOT EXISTS app_settings (
   CONSTRAINT fk_app_settings_updated_by FOREIGN KEY (updated_by_user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
-CREATE INDEX idx_users_role_active ON users(role, active);
-CREATE INDEX idx_vehicles_status_active ON vehicles(status, active);
-CREATE INDEX idx_vehicle_usages_vehicle_status ON vehicle_usages(vehicle_id, status);
-CREATE INDEX idx_vehicle_usages_user_status ON vehicle_usages(user_id, status);
-CREATE INDEX idx_vehicle_usages_withdrawal_at ON vehicle_usages(withdrawal_at);
-CREATE INDEX idx_corrections_status_created ON odometer_correction_requests(status, created_at);
-CREATE INDEX idx_audit_created_at ON audit_log_entries(created_at);
+CREATE INDEX IF NOT EXISTS idx_users_role_active ON users(role, active);
+CREATE INDEX IF NOT EXISTS idx_vehicles_status_active ON vehicles(status, active);
+CREATE INDEX IF NOT EXISTS idx_vehicle_usages_vehicle_status ON vehicle_usages(vehicle_id, status);
+CREATE INDEX IF NOT EXISTS idx_vehicle_usages_user_status ON vehicle_usages(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_vehicle_usages_withdrawal_at ON vehicle_usages(withdrawal_at);
+CREATE INDEX IF NOT EXISTS idx_corrections_status_created ON odometer_correction_requests(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_log_entries(created_at);

@@ -20,7 +20,7 @@ export function ReturnPage() {
     defaultValues: { returnKm: openUsage?.withdrawalKm ?? vehicle?.currentKm ?? 0, returnAt: toInputDateTime(), returnNote: "" },
   });
 
-  function onSubmit(data: ReturnFormData) {
+  async function onSubmit(data: ReturnFormData) {
     if (!openUsage) return;
     if (data.returnKm < openUsage.withdrawalKm) {
       form.setError("returnKm", { message: "KM de devolução não pode ser menor que a KM de retirada." });
@@ -30,7 +30,7 @@ export function ReturnPage() {
       form.setError("returnAt", { message: "Data/hora de devolução não pode ser anterior à retirada." });
       return;
     }
-    fleet.closeUsage(openUsage.id, data.returnKm, data.returnAt, data.returnNote);
+    await fleet.closeUsage(openUsage.id, data.returnKm, data.returnAt, data.returnNote);
     navigate("/");
   }
 

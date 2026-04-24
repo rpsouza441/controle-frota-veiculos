@@ -37,9 +37,9 @@ export function UsersPage() {
     form.reset(item);
   }
 
-  function onSubmit(data: UserFormData) {
-    fleet.upsertUser({ ...data, id: data.id || "" });
-    if (actor) fleet.addAuditLog(actor.id, "USER_UPSERT", "User", `${data.id ? "Edicao" : "Criacao"} do usuario ${data.email}.`);
+  async function onSubmit(data: UserFormData) {
+    await fleet.upsertUser({ ...data, id: data.id || "" });
+    if (actor) await fleet.addAuditLog(actor.id, "USER_UPSERT", "User", `${data.id ? "Edicao" : "Criacao"} do usuario ${data.email}.`);
     setEditing(null);
     form.reset({ name: "", email: "", role: "EMPLOYEE", teamId: fleet.state.teams[0]?.id, active: true });
   }

@@ -34,9 +34,9 @@ export function ClientsPage() {
     form.reset(client);
   }
 
-  function onSubmit(data: ClientFormData) {
-    fleet.upsertClient({ ...data, id: data.id || "" });
-    if (user) fleet.addAuditLog(user.id, "CLIENT_UPSERT", "Client", `${data.id ? "Edicao" : "Criacao"} do cliente sugerido ${data.name}.`);
+  async function onSubmit(data: ClientFormData) {
+    await fleet.upsertClient({ ...data, id: data.id || "" });
+    if (user) await fleet.addAuditLog(user.id, "CLIENT_UPSERT", "Client", `${data.id ? "Edicao" : "Criacao"} do cliente sugerido ${data.name}.`);
     setEditing(null);
     form.reset({ name: "", active: true });
   }

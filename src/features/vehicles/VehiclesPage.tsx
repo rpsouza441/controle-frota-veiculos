@@ -37,9 +37,9 @@ export function VehiclesPage() {
     form.reset({ id: vehicle.id, plate: vehicle.plate, model: vehicle.model, currentKm: vehicle.currentKm, teamId: vehicle.teamId, active: vehicle.active });
   }
 
-  function onSubmit(data: VehicleFormData) {
-    fleet.upsertVehicle({ ...data, id: data.id || "", status: editing?.status });
-    if (user) fleet.addAuditLog(user.id, "VEHICLE_UPSERT", "Vehicle", `${data.id ? "Edicao" : "Criacao"} do veiculo ${data.plate}.`);
+  async function onSubmit(data: VehicleFormData) {
+    await fleet.upsertVehicle({ ...data, id: data.id || "", status: editing?.status });
+    if (user) await fleet.addAuditLog(user.id, "VEHICLE_UPSERT", "Vehicle", `${data.id ? "Edicao" : "Criacao"} do veiculo ${data.plate}.`);
     setEditing(null);
     form.reset({ plate: "", model: "", currentKm: 0, teamId: fleet.state.teams[0]?.id, active: true });
   }
