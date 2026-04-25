@@ -95,5 +95,7 @@ export const initialFleetState: FleetState = {
   ],
   settings: {
     employeesCanSeeInUseVehicles: false,
+    corporateEmailDomain: "@empresa.com.br",
+    footerBrandLabel: "Espaço para sua marca",
   },
 };

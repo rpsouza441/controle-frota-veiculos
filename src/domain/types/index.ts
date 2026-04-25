@@ -86,6 +86,8 @@ export interface AuditLogEntry {
 
 export interface AppSettings {
   employeesCanSeeInUseVehicles: boolean;
+  corporateEmailDomain: string;
+  footerBrandLabel: string;
 }
 
 export interface FleetState {

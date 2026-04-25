@@ -9,6 +9,7 @@ import { Field, SelectInput, TextInput } from "../../components/forms/FormField"
 import { useFleet } from "../../data/repositories/FleetContext";
 import { User } from "../../domain/types";
 import { UserFormData, userSchema } from "../../domain/schemas/adminSchemas";
+import { isCorporateEmail } from "../../domain/rules/fleetRules";
 import { roleLabels } from "../../utils/labels";
 import { useAuth } from "../auth/AuthContext";
 
@@ -38,6 +39,10 @@ export function UsersPage() {
   }
 
   async function onSubmit(data: UserFormData) {
+    if (!isCorporateEmail(data.email, fleet.state.settings.corporateEmailDomain)) {
+      form.setError("email", { message: `Use o dominio corporativo ${fleet.state.settings.corporateEmailDomain}.` });
+      return;
+    }
     await fleet.upsertUser({ ...data, id: data.id || "" });
     if (actor) await fleet.addAuditLog(actor.id, "USER_UPSERT", "User", `${data.id ? "Edicao" : "Criacao"} do usuario ${data.email}.`);
     setEditing(null);

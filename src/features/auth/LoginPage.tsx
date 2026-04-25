@@ -1,10 +1,18 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { loginSchema, LoginFormData } from "../../domain/schemas/authSchemas";
-import { CORPORATE_EMAIL_DOMAIN } from "../../domain/rules/fleetRules";
+import { CORPORATE_EMAIL_DOMAIN, normalizeCorporateEmailDomain } from "../../domain/rules/fleetRules";
 import { useAuth } from "./AuthContext";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+
+async function fetchPublicSettings() {
+  const response = await fetch(`${API_BASE}/public-settings`);
+  if (!response.ok) return { corporateEmailDomain: CORPORATE_EMAIL_DOMAIN };
+  return response.json() as Promise<{ corporateEmailDomain: string }>;
+}
 
 function MailIcon() {
   return (
@@ -49,10 +57,25 @@ export function LoginPage() {
   const navigate = useNavigate();
   const auth = useAuth();
   const [showPassword, setShowPassword] = useState(false);
+  const [corporateEmailDomain, setCorporateEmailDomain] = useState(CORPORATE_EMAIL_DOMAIN);
   const { register, handleSubmit, formState, setError } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
+
+  useEffect(() => {
+    let active = true;
+    fetchPublicSettings()
+      .then((settings) => {
+        if (active) setCorporateEmailDomain(normalizeCorporateEmailDomain(settings.corporateEmailDomain));
+      })
+      .catch(() => {
+        if (active) setCorporateEmailDomain(CORPORATE_EMAIL_DOMAIN);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function onSubmit(data: LoginFormData) {
     try {
@@ -114,7 +137,7 @@ export function LoginPage() {
                 id="login-email"
                 className="input login-input"
                 type="email"
-                placeholder={`nome${CORPORATE_EMAIL_DOMAIN}`}
+                placeholder={`nome${corporateEmailDomain}`}
                 autoComplete="username"
                 {...register("email")}
               />
@@ -153,7 +176,7 @@ export function LoginPage() {
 
           <div className="login-notice">
             <span className="material-symbols-outlined" aria-hidden="true">info</span>
-            <p>Acesso permitido apenas para e-mails corporativos.</p>
+            <p>Acesso permitido apenas para e-mails corporativos {corporateEmailDomain}.</p>
           </div>
 
           <button id="login-submit" className="btn btn-primary login-submit" type="submit" disabled={formState.isSubmitting}>

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { isCorporateEmail } from "../rules/fleetRules";
 
 export const vehicleSchema = z.object({
   id: z.string().optional(),
@@ -13,7 +12,7 @@ export const vehicleSchema = z.object({
 export const userSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, "Informe o nome."),
-  email: z.string().email("E-mail invalido.").refine(isCorporateEmail, "Use o dominio corporativo."),
+  email: z.string().email("E-mail invalido."),
   password: z.string().optional(),
   role: z.enum(["EMPLOYEE", "MANAGER", "ADMIN"]),
   teamId: z.string().min(1, "Selecione a equipe."),

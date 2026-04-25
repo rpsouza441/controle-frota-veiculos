@@ -26,7 +26,7 @@ type FleetContextValue = {
   upsertVehicle: (vehicle: Omit<Vehicle, "status"> & { status?: Vehicle["status"] }) => Promise<void>;
   upsertUser: (user: User) => Promise<void>;
   upsertClient: (client: Client) => Promise<void>;
-  updateSettings: (settings: AppSettings, actorUserId: string) => Promise<void>;
+  updateSettings: (settings: AppSettings, actorUserId: string) => Promise<AppSettings>;
 };
 
 const emptyFleetState: FleetState = {
@@ -37,7 +37,7 @@ const emptyFleetState: FleetState = {
   clients: [],
   correctionRequests: [],
   auditLogs: [],
-  settings: { employeesCanSeeInUseVehicles: false },
+  settings: { employeesCanSeeInUseVehicles: false, corporateEmailDomain: "@empresa.com.br", footerBrandLabel: "Espaço para sua marca" },
 };
 
 const FleetContext = createContext<FleetContextValue | null>(null);
@@ -173,11 +173,12 @@ export function FleetProvider({ children }: PropsWithChildren) {
         await refresh();
       },
       async updateSettings(settings, actorUserId) {
-        await request("/settings", {
+        const response = await request<{ settings?: AppSettings }>("/settings", {
           method: "PUT",
           body: JSON.stringify({ settings, actorUserId }),
         });
         await refresh();
+        return response.settings ?? settings;
       },
     }),
     [error, loading, refresh, state],

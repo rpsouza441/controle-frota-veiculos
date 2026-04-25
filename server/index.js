@@ -10,6 +10,7 @@ const app = express();
 const port = Number(process.env.API_PORT || 3333);
 const jwtSecret = process.env.JWT_SECRET || "dev-only-change-me";
 const jwtExpiresIn = process.env.JWT_EXPIRES_IN || "8h";
+const defaultCorporateEmailDomain = normalizeCorporateEmailDomain(process.env.CORPORATE_EMAIL_DOMAIN || "@empresa.com.br");
 
 if (!process.env.JWT_SECRET) {
   console.warn("JWT_SECRET nao configurado. Usando segredo local de desenvolvimento.");
@@ -95,12 +96,22 @@ const clientSchema = z.object({
 const settingsSchema = z.object({
   settings: z.object({
     employeesCanSeeInUseVehicles: z.coerce.boolean(),
+    corporateEmailDomain: z.string().trim().min(2).max(80),
   }),
   actorUserId: idSchema,
 });
 
 function newId(prefix) {
   return `${prefix}-${crypto.randomUUID()}`;
+}
+
+function normalizeCorporateEmailDomain(domain) {
+  const normalized = String(domain || "@empresa.com.br").trim().toLowerCase();
+  return normalized.startsWith("@") ? normalized : `@${normalized}`;
+}
+
+function isCorporateEmail(email, domain) {
+  return String(email).trim().toLowerCase().endsWith(normalizeCorporateEmailDomain(domain));
 }
 
 function apiLog(level, event, details = {}) {
@@ -252,6 +263,7 @@ async function getFleetState() {
       LIMIT 300`,
   );
   const [settingsRows] = await pool.query("SELECT setting_key AS settingKey, setting_value AS settingValue FROM app_settings");
+  const settings = settingsFromRows(settingsRows);
 
   const usageClientMap = usageClients.reduce((acc, item) => {
     acc[item.usageId] ??= { ids: [], names: [] };
@@ -283,10 +295,27 @@ async function getFleetState() {
     })),
     auditLogs: auditLogs.map((log) => ({ ...log, createdAt: toIsoMinute(log.createdAt), actorUserId: log.actorUserId ?? "system" })),
     settings: {
-      employeesCanSeeInUseVehicles:
-        settingsRows.find((row) => row.settingKey === "employees_can_see_in_use_vehicles")?.settingValue === "true",
+      employeesCanSeeInUseVehicles: settings.employeesCanSeeInUseVehicles,
+      corporateEmailDomain: settings.corporateEmailDomain,
+      footerBrandLabel: settings.footerBrandLabel,
     },
   };
+}
+
+function settingsFromRows(settingsRows) {
+  return {
+    employeesCanSeeInUseVehicles:
+      settingsRows.find((row) => row.settingKey === "employees_can_see_in_use_vehicles")?.settingValue === "true",
+    corporateEmailDomain: normalizeCorporateEmailDomain(
+      settingsRows.find((row) => row.settingKey === "corporate_email_domain")?.settingValue || defaultCorporateEmailDomain,
+    ),
+    footerBrandLabel: settingsRows.find((row) => row.settingKey === "footer_brand_label")?.settingValue || "Espaço para sua marca",
+  };
+}
+
+async function getAppSettings() {
+  const [settingsRows] = await pool.query("SELECT setting_key AS settingKey, setting_value AS settingValue FROM app_settings");
+  return settingsFromRows(settingsRows);
 }
 
 async function ensureClients(connection, names) {
@@ -309,6 +338,15 @@ app.get("/api/health", async (_req, res, next) => {
   try {
     await pool.query("SELECT 1");
     res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/public-settings", async (_req, res, next) => {
+  try {
+    const settings = await getAppSettings();
+    res.json({ corporateEmailDomain: settings.corporateEmailDomain });
   } catch (error) {
     next(error);
   }
@@ -554,6 +592,10 @@ app.put("/api/vehicles/:id", requireAuth, requireRole(["ADMIN"]), async (req, re
 app.put("/api/users/:id", requireAuth, requireRole(["ADMIN"]), async (req, res, next) => {
   try {
     const user = validate(userSchema, { ...req.body, id: req.params.id });
+    const settings = await getAppSettings();
+    if (!isCorporateEmail(user.email, settings.corporateEmailDomain)) {
+      return res.status(400).json({ message: `Use um e-mail corporativo ${settings.corporateEmailDomain}.` });
+    }
     const [existing] = await pool.execute("SELECT id FROM users WHERE id = ? LIMIT 1", [user.id]);
     if (!existing[0] && !user.password) {
       return res.status(400).json({ message: "Senha obrigatoria para criar usuario." });
@@ -602,6 +644,7 @@ app.put("/api/clients/:id", requireAuth, requireRole(["ADMIN"]), async (req, res
 app.put("/api/settings", requireAuth, requireRole(["ADMIN"]), async (req, res, next) => {
   try {
     const { settings, actorUserId } = validate(settingsSchema, req.body);
+    const corporateEmailDomain = normalizeCorporateEmailDomain(settings.corporateEmailDomain);
     await withTransaction(async (connection) => {
       await connection.execute(
         `INSERT INTO app_settings (setting_key, setting_value, updated_by_user_id)
@@ -609,13 +652,26 @@ app.put("/api/settings", requireAuth, requireRole(["ADMIN"]), async (req, res, n
          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by_user_id = VALUES(updated_by_user_id)`,
         [settings.employeesCanSeeInUseVehicles ? "true" : "false", actorUserId],
       );
-      await addAuditLog(connection, actorUserId, "SETTINGS_UPDATE", "AppSettings", `Configuracoes atualizadas: funcionarios ${settings.employeesCanSeeInUseVehicles ? "podem" : "nao podem"} ver veiculos em uso.`);
+      await connection.execute(
+        `INSERT INTO app_settings (setting_key, setting_value, updated_by_user_id)
+         VALUES ('corporate_email_domain', ?, ?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by_user_id = VALUES(updated_by_user_id)`,
+        [corporateEmailDomain, actorUserId],
+      );
+      await addAuditLog(connection, actorUserId, "SETTINGS_UPDATE", "AppSettings", `Configuracoes atualizadas: funcionarios ${settings.employeesCanSeeInUseVehicles ? "podem" : "nao podem"} ver veiculos em uso; dominio ${corporateEmailDomain}.`);
       apiLog("info", "crud.settings_update", {
         actorUserId,
         employeesCanSeeInUseVehicles: settings.employeesCanSeeInUseVehicles,
+        corporateEmailDomain,
       });
     });
-    res.json({ ok: true });
+    res.json({
+      ok: true,
+      settings: {
+        employeesCanSeeInUseVehicles: settings.employeesCanSeeInUseVehicles,
+        corporateEmailDomain,
+      },
+    });
   } catch (error) {
     next(error);
   }

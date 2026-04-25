@@ -67,6 +67,7 @@ ON DUPLICATE KEY UPDATE
 
 INSERT INTO app_settings (setting_key, setting_value, updated_by_user_id) VALUES
   ('employees_can_see_in_use_vehicles', 'false', 'u-admin'),
+  ('corporate_email_domain', '@empresa.com.br', 'u-admin'),
   ('footer_brand_label', 'Espaço para sua marca', 'u-admin')
 ON DUPLICATE KEY UPDATE
   setting_value = VALUES(setting_value),

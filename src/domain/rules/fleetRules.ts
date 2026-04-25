@@ -1,9 +1,15 @@
 import { UserRole, Vehicle, VehicleUsage } from "../types";
 
-export const CORPORATE_EMAIL_DOMAIN = "@empresa.com.br";
+export const CORPORATE_EMAIL_DOMAIN = import.meta.env.VITE_CORPORATE_EMAIL_DOMAIN || "@empresa.com.br";
+
+export function normalizeCorporateEmailDomain(domain?: string) {
+  const normalized = String(domain || CORPORATE_EMAIL_DOMAIN).trim().toLowerCase();
+  if (!normalized) return CORPORATE_EMAIL_DOMAIN;
+  return normalized.startsWith("@") ? normalized : `@${normalized}`;
+}
 
 export function isCorporateEmail(email: string, domain = CORPORATE_EMAIL_DOMAIN) {
-  return email.trim().toLowerCase().endsWith(domain);
+  return email.trim().toLowerCase().endsWith(normalizeCorporateEmailDomain(domain));
 }
 
 export function canAccess(userRole: UserRole | undefined, allowed: UserRole[]) {
