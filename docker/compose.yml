@@ -1,0 +1,49 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: fleet_app
+    ports:
+      - "3333:3333"
+    environment:
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-fleet_control}
+      - DB_USER=${DB_USER:-app_user}
+      - DB_PASSWORD=${DB_PASSWORD:-change-me}
+      - API_PORT=3333
+      - JWT_SECRET=${JWT_SECRET:-change-this-dev-secret}
+      - JWT_EXPIRES_IN=8h
+      - CORPORATE_EMAIL_DOMAIN=${CORPORATE_EMAIL_DOMAIN:-@empresa.com.br}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks:
+      - fleet_network
+
+  mariadb:
+    image: mariadb:11.4
+    container_name: fleet_db
+    environment:
+      - MARIADB_ROOT_PASSWORD=${DB_ADMIN_PASSWORD:-root}
+      - MARIADB_DATABASE=${DB_NAME:-fleet_control}
+      - MARIADB_USER=${DB_USER:-app_user}
+      - MARIADB_PASSWORD=${DB_PASSWORD:-change-me}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--su-mysql", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fleet_network
+
+networks:
+  fleet_network:
+
+volumes:
+  mariadb_data:
