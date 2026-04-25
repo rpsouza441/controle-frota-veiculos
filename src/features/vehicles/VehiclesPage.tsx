@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ColumnDef } from "@tanstack/react-table";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
@@ -23,6 +23,17 @@ export function VehiclesPage() {
     resolver: zodResolver(vehicleSchema),
     defaultValues: { plate: "", model: "", currentKm: 0, teamId: fleet.state.teams[0]?.id, active: true },
   });
+  const selectableTeams = useMemo(() => {
+    const currentTeamId = editing?.teamId;
+    return fleet.state.teams.filter((team) => team.active || team.id === currentTeamId);
+  }, [editing?.teamId, fleet.state.teams]);
+  const defaultTeamId = selectableTeams.find((team) => team.active)?.id ?? selectableTeams[0]?.id;
+
+  useEffect(() => {
+    if (!form.getValues("teamId") && defaultTeamId) {
+      form.setValue("teamId", defaultTeamId);
+    }
+  }, [defaultTeamId, form]);
 
   const columns = useMemo<ColumnDef<Vehicle>[]>(
     () => [
@@ -77,7 +88,7 @@ export function VehiclesPage() {
       await fleet.upsertVehicle({ ...data, id: data.id || "", status: editing?.status });
       if (user) await fleet.addAuditLog(user.id, "VEHICLE_UPSERT", "Vehicle", `${data.id ? "Edicao" : "Criacao"} do veiculo ${data.plate}.`);
       setEditing(null);
-      form.reset({ plate: "", model: "", currentKm: 0, teamId: fleet.state.teams[0]?.id, active: true });
+      form.reset({ plate: "", model: "", currentKm: 0, teamId: defaultTeamId, active: true });
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Nao foi possivel salvar o veiculo.");
     }
@@ -90,7 +101,7 @@ export function VehiclesPage() {
         <Field label="Placa" error={form.formState.errors.plate?.message}><TextInput {...form.register("plate")} /></Field>
         <Field label="Modelo" error={form.formState.errors.model?.message}><TextInput {...form.register("model")} /></Field>
         <Field label="KM atual" error={form.formState.errors.currentKm?.message}><TextInput type="number" {...form.register("currentKm")} /></Field>
-        <Field label="Equipe" error={form.formState.errors.teamId?.message}><SelectInput {...form.register("teamId")}>{fleet.state.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</SelectInput></Field>
+        <Field label="Equipe" error={form.formState.errors.teamId?.message}><SelectInput {...form.register("teamId")}>{selectableTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</SelectInput></Field>
         <label className="check-field"><input type="checkbox" {...form.register("active")} /> Ativo</label>
         {submitError ? <div className="alert danger">{submitError}</div> : null}
         <Button type="submit">{editing ? "Salvar veículo" : "Criar veículo"}</Button>

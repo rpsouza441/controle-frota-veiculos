@@ -40,6 +40,13 @@ export const clientSchema = z.object({
   active: z.boolean(),
 });
 
+export const teamSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(2, "Informe o nome da equipe."),
+  active: z.boolean(),
+});
+
 export type VehicleFormData = z.infer<typeof vehicleSchema>;
 export type UserFormData = z.infer<typeof userSchema>;
 export type ClientFormData = z.infer<typeof clientSchema>;
+export type TeamFormData = z.infer<typeof teamSchema>;

@@ -8,6 +8,7 @@ export type AuditAction =
   | "VEHICLE_RETURN"
   | "VEHICLE_UPSERT"
   | "USER_UPSERT"
+  | "TEAM_UPSERT"
   | "CLIENT_UPSERT"
   | "ODOMETER_CORRECTION_REQUEST"
   | "ODOMETER_CORRECTION_REVIEW"
@@ -16,6 +17,7 @@ export type AuditAction =
 export interface Team {
   id: string;
   name: string;
+  active: boolean;
 }
 
 export interface User {

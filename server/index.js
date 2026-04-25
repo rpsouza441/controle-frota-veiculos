@@ -93,6 +93,12 @@ const clientSchema = z.object({
   active: z.coerce.boolean(),
 });
 
+const teamSchema = z.object({
+  id: idSchema,
+  name: z.string().trim().min(2).max(160),
+  active: z.coerce.boolean(),
+});
+
 const settingsSchema = z.object({
   settings: z.object({
     employeesCanSeeInUseVehicles: z.coerce.boolean(),
@@ -169,6 +175,17 @@ async function ensureVehicleCanBeInactivated(connection, vehicle) {
   }
 }
 
+async function ensureTeamCanBeInactivated(connection, team) {
+  if (team.active) return;
+  const [activeUsers] = await connection.execute("SELECT id FROM users WHERE team_id = ? AND active = TRUE LIMIT 1", [team.id]);
+  const [activeVehicles] = await connection.execute("SELECT id FROM vehicles WHERE team_id = ? AND active = TRUE LIMIT 1", [team.id]);
+  if (activeUsers[0] || activeVehicles[0]) {
+    const error = new Error("Equipe com usuarios ou veiculos ativos nao pode ser inativada.");
+    error.status = 409;
+    throw error;
+  }
+}
+
 function publicUser(user) {
   return {
     id: user.id,
@@ -233,7 +250,7 @@ async function addAuditLog(connection, actorUserId, action, entity, summary) {
 }
 
 async function getFleetState() {
-  const [teams] = await pool.query("SELECT id, name FROM teams ORDER BY name");
+  const [teams] = await pool.query("SELECT id, name, active FROM teams ORDER BY name");
   const [users] = await pool.query("SELECT id, name, email, role, team_id AS teamId, active FROM users ORDER BY name");
   const [vehicles] = await pool.query(
     "SELECT id, plate, model, current_km AS currentKm, team_id AS teamId, status, active FROM vehicles ORDER BY plate",
@@ -273,7 +290,7 @@ async function getFleetState() {
   }, {});
 
   return {
-    teams,
+    teams: teams.map((team) => ({ ...team, active: toBool(team.active) })),
     users: users.map(publicUser),
     vehicles: vehicles.map((vehicle) => ({ ...vehicle, active: toBool(vehicle.active) })),
     clients: clients.map((client) => ({ ...client, active: toBool(client.active) })),
@@ -619,6 +636,25 @@ app.put("/api/users/:id", requireAuth, requireRole(["ADMIN"]), async (req, res, 
       );
     }
     apiLog("info", "crud.user_upsert", { actorUserId: req.user.id, userId: user.id, email: user.email, role: user.role, active: user.active });
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put("/api/teams/:id", requireAuth, requireRole(["ADMIN"]), async (req, res, next) => {
+  try {
+    const team = validate(teamSchema, { ...req.body, id: req.params.id });
+    await withTransaction(async (connection) => {
+      await ensureTeamCanBeInactivated(connection, team);
+      await connection.execute(
+        `INSERT INTO teams (id, name, active)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE name = VALUES(name), active = VALUES(active)`,
+        [team.id, team.name, team.active],
+      );
+    });
+    apiLog("info", "crud.team_upsert", { actorUserId: req.user.id, teamId: team.id, name: team.name, active: team.active });
     res.json({ ok: true });
   } catch (error) {
     next(error);

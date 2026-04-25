@@ -11,6 +11,7 @@ const actionLabels: Record<AuditLogEntry["action"], string> = {
   VEHICLE_RETURN: "Devolução de veículo",
   VEHICLE_UPSERT: "Criação/edição de veículo",
   USER_UPSERT: "Criação/edição de usuário",
+  TEAM_UPSERT: "Criação/edição de equipe",
   CLIENT_UPSERT: "Criação/edição de cliente",
   ODOMETER_CORRECTION_REQUEST: "Solicitação de correção de KM",
   ODOMETER_CORRECTION_REVIEW: "Aprovação/rejeição de correção",

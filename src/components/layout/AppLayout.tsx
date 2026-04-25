@@ -11,6 +11,7 @@ const navItems: Array<{ to: string; label: string; roles: UserRole[] }> = [
   { to: "/correcoes", label: "Correções", roles: ["MANAGER", "ADMIN"] },
   { to: "/veiculos", label: "Veículos", roles: ["ADMIN"] },
   { to: "/usuarios", label: "Usuários", roles: ["ADMIN"] },
+  { to: "/equipes", label: "Equipes", roles: ["ADMIN"] },
   { to: "/clientes", label: "Clientes", roles: ["ADMIN"] },
   { to: "/auditoria", label: "Auditoria", roles: ["ADMIN"] },
   { to: "/configuracoes", label: "Configurações", roles: ["ADMIN"] },

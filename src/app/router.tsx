@@ -9,6 +9,7 @@ import { HistoryPage } from "../features/usage/HistoryPage";
 import { CorrectionsPage } from "../features/corrections/CorrectionsPage";
 import { VehiclesPage } from "../features/vehicles/VehiclesPage";
 import { UsersPage } from "../features/users/UsersPage";
+import { TeamsPage } from "../features/teams/TeamsPage";
 import { ClientsPage } from "../features/clients/ClientsPage";
 import { AuditPage } from "../features/audit/AuditPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
             children: [
               { path: "/veiculos", element: <VehiclesPage /> },
               { path: "/usuarios", element: <UsersPage /> },
+              { path: "/equipes", element: <TeamsPage /> },
               { path: "/clientes", element: <ClientsPage /> },
               { path: "/auditoria", element: <AuditPage /> },
               { path: "/configuracoes", element: <SettingsPage /> },

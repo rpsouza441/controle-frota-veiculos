@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ColumnDef } from "@tanstack/react-table";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
@@ -21,6 +21,18 @@ export function UsersPage() {
     resolver: zodResolver(userSchema),
     defaultValues: { name: "", email: "", password: "", role: "EMPLOYEE", teamId: fleet.state.teams[0]?.id, active: true },
   });
+  const selectableTeams = useMemo(() => {
+    const currentTeamId = editing?.teamId;
+    return fleet.state.teams.filter((team) => team.active || team.id === currentTeamId);
+  }, [editing?.teamId, fleet.state.teams]);
+  const defaultTeamId = selectableTeams.find((team) => team.active)?.id ?? selectableTeams[0]?.id;
+
+  useEffect(() => {
+    if (!form.getValues("teamId") && defaultTeamId) {
+      form.setValue("teamId", defaultTeamId);
+    }
+  }, [defaultTeamId, form]);
+
   const columns = useMemo<ColumnDef<User>[]>(
     () => [
       { header: "Nome", accessorKey: "name" },
@@ -46,7 +58,7 @@ export function UsersPage() {
     await fleet.upsertUser({ ...data, id: data.id || "" });
     if (actor) await fleet.addAuditLog(actor.id, "USER_UPSERT", "User", `${data.id ? "Edicao" : "Criacao"} do usuario ${data.email}.`);
     setEditing(null);
-    form.reset({ name: "", email: "", password: "", role: "EMPLOYEE", teamId: fleet.state.teams[0]?.id, active: true });
+    form.reset({ name: "", email: "", password: "", role: "EMPLOYEE", teamId: defaultTeamId, active: true });
   }
 
   return (
@@ -67,7 +79,7 @@ export function UsersPage() {
         </Field>
         <Field label="Equipe" error={form.formState.errors.teamId?.message}>
           <SelectInput {...form.register("teamId")}>
-            {fleet.state.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+            {selectableTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
           </SelectInput>
         </Field>
         <label className="check-field"><input type="checkbox" {...form.register("active")} /> Ativo</label>

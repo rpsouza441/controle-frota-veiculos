@@ -6,6 +6,7 @@ import {
   CorrectionStatus,
   FleetState,
   OdometerCorrectionRequest,
+  Team,
   User,
   Vehicle,
   VehicleUsage,
@@ -25,6 +26,7 @@ type FleetContextValue = {
   reviewCorrectionRequest: (requestId: string, status: Exclude<CorrectionStatus, "PENDENTE">, reviewerId: string, note?: string) => Promise<void>;
   upsertVehicle: (vehicle: Omit<Vehicle, "status"> & { status?: Vehicle["status"] }) => Promise<void>;
   upsertUser: (user: User) => Promise<void>;
+  upsertTeam: (team: Team) => Promise<void>;
   upsertClient: (client: Client) => Promise<void>;
   updateSettings: (settings: AppSettings, actorUserId: string) => Promise<AppSettings>;
 };
@@ -161,6 +163,14 @@ export function FleetProvider({ children }: PropsWithChildren) {
         await request(`/users/${id}`, {
           method: "PUT",
           body: JSON.stringify({ ...user, id }),
+        });
+        await refresh();
+      },
+      async upsertTeam(team) {
+        const id = team.id || newId("team");
+        await request(`/teams/${id}`, {
+          method: "PUT",
+          body: JSON.stringify({ ...team, id }),
         });
         await refresh();
       },

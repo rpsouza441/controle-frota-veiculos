@@ -13,9 +13,9 @@ import { FleetState } from "../../domain/types";
 
 export const initialFleetState: FleetState = {
   teams: [
-    { id: "team-sales", name: "Comercial" },
-    { id: "team-ops", name: "Operações" },
-    { id: "team-admin", name: "Administrativo" },
+    { id: "team-sales", name: "Comercial", active: true },
+    { id: "team-ops", name: "Operações", active: true },
+    { id: "team-admin", name: "Administrativo", active: true },
   ],
   users: [
     { id: "u-employee", name: "Ricardo Lima", email: "ricardo@empresa.com.br", role: "EMPLOYEE", teamId: "team-sales", active: true },
