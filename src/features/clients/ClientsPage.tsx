@@ -2,8 +2,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
 import { DataTable } from "../../components/tables/DataTable";
 import { Field, TextInput } from "../../components/forms/FormField";
 import { useFleet } from "../../data/repositories/FleetContext";
@@ -19,11 +19,11 @@ export function ClientsPage() {
     resolver: zodResolver(clientSchema),
     defaultValues: { name: "", active: true },
   });
+
   const columns = useMemo<ColumnDef<Client>[]>(
     () => [
       { header: "Cliente sugerido", accessorKey: "name" },
       { header: "Status", cell: ({ row }) => <Badge tone={row.original.active ? "success" : "neutral"}>{row.original.active ? "Ativo" : "Inativo"}</Badge> },
-      { header: "Merge futuro", cell: () => <Button variant="ghost" disabled>Estrutura visual</Button> },
       { header: "Ações", cell: ({ row }) => <Button variant="secondary" onClick={() => startEdit(row.original)}>Editar</Button> },
     ],
     [],
