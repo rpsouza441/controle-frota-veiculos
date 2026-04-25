@@ -106,8 +106,7 @@ function newId(prefix) {
 function toIsoMinute(value) {
   if (!value) return undefined;
   const date = value instanceof Date ? value : new Date(value);
-  const pad = (part) => String(part).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return date.toISOString().slice(0, 16) + 'Z';
 }
 
 function dbDateTime(value) {
@@ -117,11 +116,29 @@ function dbDateTime(value) {
     error.status = 400;
     throw error;
   }
-  return String(value).replace("T", " ").slice(0, 19);
+  return date.toISOString().slice(0, 19).replace("T", " ");
 }
 
 function toBool(value) {
   return Boolean(Number(value));
+}
+
+function normalizeVehicleStatus(vehicle) {
+  if (!vehicle.active) return "INATIVO";
+  return vehicle.status === "EM_USO" ? "EM_USO" : "DISPONIVEL";
+}
+
+async function ensureVehicleCanBeInactivated(connection, vehicle) {
+  if (vehicle.active) return;
+  const [rows] = await connection.execute(
+    "SELECT id FROM vehicle_usages WHERE vehicle_id = ? AND status = 'ABERTO' LIMIT 1",
+    [vehicle.id],
+  );
+  if (rows[0]) {
+    const error = new Error("Veiculo em uso nao pode ser inativado. Registre a devolucao antes.");
+    error.status = 409;
+    throw error;
+  }
 }
 
 function publicUser(user) {
@@ -181,7 +198,7 @@ function requireRole(roles) {
 async function addAuditLog(connection, actorUserId, action, entity, summary) {
   await connection.execute(
     `INSERT INTO audit_log_entries (id, created_at, actor_user_id, action, entity, summary)
-     VALUES (?, NOW(), ?, ?, ?, ?)`,
+     VALUES (?, UTC_TIMESTAMP(), ?, ?, ?, ?)`,
     [newId("audit"), actorUserId, action, entity, summary],
   );
 }
@@ -385,13 +402,18 @@ app.post("/api/usages/:id/return", requireAuth, async (req, res, next) => {
         error.status = 409;
         throw error;
       }
+      if (usage.user_id !== req.user.id && req.user.role !== "ADMIN") {
+        const error = new Error("Apenas o responsavel ou um administrador pode registrar esta devolucao.");
+        error.status = 403;
+        throw error;
+      }
       await connection.execute(
         "UPDATE vehicle_usages SET return_km = ?, return_at = ?, return_note = ?, status = 'FECHADO' WHERE id = ?",
         [returnKm, dbDateTime(returnAt), returnNote || null, req.params.id],
       );
       await connection.execute("UPDATE vehicles SET current_km = ?, status = 'DISPONIVEL' WHERE id = ? AND active = TRUE", [returnKm, usage.vehicle_id]);
       const [vehicleRows] = await connection.execute("SELECT plate FROM vehicles WHERE id = ?", [usage.vehicle_id]);
-      await addAuditLog(connection, usage.user_id, "VEHICLE_RETURN", "VehicleUsage", `Devolucao do veiculo ${vehicleRows[0]?.plate ?? usage.vehicle_id} com KM ${returnKm}.`);
+      await addAuditLog(connection, req.user.id, "VEHICLE_RETURN", "VehicleUsage", `Devolucao do veiculo ${vehicleRows[0]?.plate ?? usage.vehicle_id} com KM ${returnKm}.`);
     });
     res.json({ ok: true });
   } catch (error) {
@@ -406,7 +428,7 @@ app.post("/api/corrections", requireAuth, async (req, res, next) => {
       await connection.execute(
         `INSERT INTO odometer_correction_requests
          (id, vehicle_id, requested_by_user_id, informed_km, system_km, reason, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'PENDENTE', NOW())`,
+         VALUES (?, ?, ?, ?, ?, ?, 'PENDENTE', UTC_TIMESTAMP())`,
         [newId("corr"), input.vehicleId, input.requestedByUserId, input.informedKm, input.systemKm, input.reason],
       );
       await addAuditLog(connection, input.requestedByUserId, "ODOMETER_CORRECTION_REQUEST", "OdometerCorrectionRequest", `Solicitacao de correcao de KM: sistema ${input.systemKm}, informado ${input.informedKm}.`);
@@ -428,8 +450,13 @@ app.post("/api/corrections/:id/review", requireAuth, requireRole(["MANAGER", "AD
         error.status = 404;
         throw error;
       }
+      if (request.status !== "PENDENTE") {
+        const error = new Error("Esta solicitação já foi processada ou não está mais pendente.");
+        error.status = 409;
+        throw error;
+      }
       await connection.execute(
-        "UPDATE odometer_correction_requests SET status = ?, reviewed_by_user_id = ?, reviewed_at = NOW(), review_note = ? WHERE id = ?",
+        "UPDATE odometer_correction_requests SET status = ?, reviewed_by_user_id = ?, reviewed_at = UTC_TIMESTAMP(), review_note = ? WHERE id = ?",
         [status, reviewerId, note || null, req.params.id],
       );
       if (status === "APROVADA") {
@@ -446,13 +473,17 @@ app.post("/api/corrections/:id/review", requireAuth, requireRole(["MANAGER", "AD
 app.put("/api/vehicles/:id", requireAuth, requireRole(["ADMIN"]), async (req, res, next) => {
   try {
     const vehicle = validate(vehicleSchema, { ...req.body, id: req.params.id });
-    await pool.execute(
-      `INSERT INTO vehicles (id, plate, model, current_km, team_id, status, active)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE plate = VALUES(plate), model = VALUES(model), current_km = VALUES(current_km),
-         team_id = VALUES(team_id), status = VALUES(status), active = VALUES(active)`,
-      [vehicle.id, vehicle.plate, vehicle.model, vehicle.currentKm, vehicle.teamId, vehicle.status, vehicle.active],
-    );
+    const status = normalizeVehicleStatus(vehicle);
+    await withTransaction(async (connection) => {
+      await ensureVehicleCanBeInactivated(connection, vehicle);
+      await connection.execute(
+        `INSERT INTO vehicles (id, plate, model, current_km, team_id, status, active)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE plate = VALUES(plate), model = VALUES(model), current_km = VALUES(current_km),
+           team_id = VALUES(team_id), status = VALUES(status), active = VALUES(active)`,
+        [vehicle.id, vehicle.plate, vehicle.model, vehicle.currentKm, vehicle.teamId, status, vehicle.active],
+      );
+    });
     res.json({ ok: true });
   } catch (error) {
     next(error);

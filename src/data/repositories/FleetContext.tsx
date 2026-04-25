@@ -111,14 +111,21 @@ export function FleetProvider({ children }: PropsWithChildren) {
       async createWithdrawal(input) {
         await request("/usages/withdrawals", {
           method: "POST",
-          body: JSON.stringify(input),
+          body: JSON.stringify({
+            ...input,
+            withdrawalAt: new Date(input.withdrawalAt).toISOString(),
+          }),
         });
         await refresh();
       },
       async closeUsage(usageId, returnKm, returnAt, returnNote) {
         await request(`/usages/${usageId}/return`, {
           method: "POST",
-          body: JSON.stringify({ returnKm, returnAt, returnNote }),
+          body: JSON.stringify({ 
+            returnKm, 
+            returnAt: new Date(returnAt).toISOString(), 
+            returnNote 
+          }),
         });
         await refresh();
       },
@@ -138,12 +145,13 @@ export function FleetProvider({ children }: PropsWithChildren) {
       },
       async upsertVehicle(vehicle) {
         const id = vehicle.id || newId("vehicle");
+        const status = vehicle.active ? (vehicle.status === "EM_USO" ? "EM_USO" : "DISPONIVEL") : "INATIVO";
         await request(`/vehicles/${id}`, {
           method: "PUT",
           body: JSON.stringify({
             ...vehicle,
             id,
-            status: vehicle.active ? vehicle.status ?? "DISPONIVEL" : "INATIVO",
+            status,
           }),
         });
         await refresh();
