@@ -1,184 +1,153 @@
-# Controle de Frota de Veiculos
+# Controle de Frota de Veículos
 
-MVP web para controle de retirada, devolucao e auditoria de veiculos corporativos. O fluxo da aplicacao e:
+Sistema web para controle de retirada, devolução e auditoria de veículos corporativos. A arquitetura da aplicação é baseada em:
 
 ```text
 Frontend React -> API Node/Express -> MariaDB
 ```
 
-O React nao conecta diretamente ao MariaDB. Credenciais de banco ficam somente no backend, via variaveis de ambiente.
+O frontend React não conecta diretamente ao MariaDB. As credenciais de banco de dados e regras de negócio ficam centralizadas no backend, garantindo segurança e integridade das operações.
 
-## Funcionalidades
+Este README é a fonte principal de verdade sobre a arquitetura, regras e estado atual do projeto.
 
-- Login por usuarios da aplicacao com senha hasheada e JWT.
-- Dashboard com veiculos disponiveis e em uso.
-- Retirada de veiculo com validacao de KM, cliente, origem, destino e finalidade.
-- Devolucao de veiculo com atualizacao de quilometragem.
-- Solicitacao de correcao de KM quando ha divergencia no odometro.
-- Aprovacao ou rejeicao de correcoes por gestor/admin.
-- Historico de uso com filtros e exportacao CSV.
-- Gestao de veiculos, usuarios e clientes sugeridos.
-- Configuracao admin para permitir ou bloquear que funcionarios vejam carros em uso.
-- Exibicao do nome de quem esta usando um veiculo em uso.
-- Log de auditoria persistido no MariaDB.
-- Rodape com espaco para marca da empresa.
+## Estado Atual da Aplicação
 
-## Stack
+- Aplicação full-stack funcional com frontend React, API Node/Express e banco de dados MariaDB.
+- Login seguro com senhas criptografadas em `bcrypt` e gerenciamento de sessão via tokens `JWT`.
+- Rotas sensíveis protegidas no backend por autenticação e controle de perfis (roles).
+- Validação rigorosa de dados de entrada na API utilizando `Zod`.
+- Auditoria de dados persistida em banco e eventos relevantes logados no terminal da API para rastreabilidade.
+- Layout operacional responsivo adaptável para desktop, tablets e mobile.
 
-- React 18
-- Vite
-- TypeScript
-- React Router
-- React Hook Form
-- Zod
-- TanStack Table
-- Node.js + Express
-- MariaDB
-- bcryptjs
-- jsonwebtoken
-- CSS puro com variaveis e layout responsivo
+## Perfis de Usuário (Roles)
 
-## Rodando localmente
+Os perfis de acesso do sistema são os seguintes:
 
-Instale as dependencias:
+- `EMPLOYEE` (Funcionário): Pode visualizar o dashboard, retirar veículo, devolver veículo e solicitar correção de quilometragem (KM).
+- `MANAGER` (Gestor): Possui as permissões de funcionário e também pode visualizar o histórico geral e aprovar ou rejeitar solicitações de correção de KM.
+- `ADMIN` (Administrador): Possui acesso total. Pode realizar todas as ações de gestores e também gerenciar veículos, usuários, equipes, clientes, configurações globais e visualizar os logs de auditoria.
 
-```bash
-npm install
-```
+## Funcionalidades Principais
 
-Configure a conexao com o MariaDB e o segredo JWT no `.env`, usando `.env.example` como base:
+- Autenticação de usuários com reidratação de sessão via `/api/auth/me`.
+- Dashboard em tempo real com veículos disponíveis e em uso.
+- Configuração de privacidade para permitir ou bloquear que funcionários vejam carros em uso por terceiros.
+- Exibição do nome do colaborador que está utilizando um veículo.
+- Processo de retirada de veículo com validação de KM, cliente, origem, destino e finalidade.
+- Bloqueios de concorrência:
+  - Impede que um usuário abra duas retiradas simultâneas.
+  - Impede que um veículo seja retirado por mais de um usuário ao mesmo tempo.
+- Processo de devolução com atualização de quilometragem (não pode ser menor que a de retirada).
+- Devolução forçada por administradores para carros em uso, útil para esquecimentos.
+- Fluxo de correção de KM: caso o odômetro físico divirja do sistema, o usuário solicita a correção, a retirada fica bloqueada e aguarda aprovação de um gestor/admin.
+- Histórico completo de uso com filtros de busca e exportação para CSV.
+- Gestão (CRUD) de veículos, usuários, equipes e clientes (com suporte a autocompletar na retirada).
+- Inativação lógica (soft delete) para veículos, usuários, equipes e clientes, preservando a integridade histórica.
+- Configuração de domínio corporativo de e-mail e customização de marca (rodapé) via painel administrativo.
+- Tratamento visual de erros e indisponibilidade de API.
 
-```env
-DB_HOST=127.0.0.1
-DB_PORT=3307
-DB_NAME=fleet_control
-DB_USER=app_user
-DB_PASSWORD=change-me
+## Decisões de Produto e Arquitetura
 
-API_PORT=3333
-VITE_API_BASE_URL=/api
-JWT_SECRET=change-this-dev-secret
-JWT_EXPIRES_IN=8h
+- **Exclusão Lógica**: A exclusão real de registros não é permitida no sistema. Para preservar o histórico de usos e logs de auditoria, utiliza-se a inativação de registros (`status`).
+- **Reset de Senha**: O reset de senhas por e-mail (esqueci minha senha) não está implementado na fase atual. A redefinição de senha é feita manualmente por um administrador na tela de gestão de usuários.
+- **Permissões Acopladas**: As roles (`EMPLOYEE`, `MANAGER`, `ADMIN`) são fixas e suas permissões estão acopladas diretamente no código da API e do frontend.
 
-DB_ADMIN_USER=root
-DB_ADMIN_PASSWORD=
-```
+## Regras de Negócio Importantes
 
-Prepare o banco de dados:
+- Usuário inativo não consegue realizar login.
+- Veículo inativo não pode ser retirado.
+- Um veículo em uso não pode ser inativado; é necessário registrar sua devolução primeiro.
+- Uma equipe que possui usuários ou veículos ativos vinculados não pode ser inativada.
+- Equipes inativas não aparecem como opções para novas associações, mas continuam visíveis em registros históricos.
+- É obrigatório informar o cliente na retirada, utilizando o campo de autocompletar.
+- A data/hora de devolução nunca pode ser anterior à data/hora de retirada.
+- Alterações administrativas sensíveis geram logs de auditoria automaticamente.
+- O domínio corporativo configurado é validado para novos cadastros de usuários. Usuários antigos com domínios diferentes continuam acessando o sistema para evitar bloqueios acidentais.
 
-```bash
-npm run db:apply
-```
+## Tecnologias Utilizadas (Stack)
 
-Esse comando aplica, em ordem:
+- **Frontend**: React 18, Vite, TypeScript, React Router, React Hook Form, Zod, TanStack Table, CSS puro com variáveis CSS.
+- **Backend**: Node.js, Express, MariaDB, bcryptjs, jsonwebtoken, Zod.
 
-```text
-db/sql/000_create_database.sql
-db/sql/001_create_schema.sql
-db/sql/002_seed_dev.sql
-```
+## Executando o Projeto Localmente
 
-O script `000_create_database.sql` usa `DB_ADMIN_USER` e `DB_ADMIN_PASSWORD`, pois cria o banco e concede permissoes. Os scripts `001_create_schema.sql` e `002_seed_dev.sql` usam `DB_USER`, `DB_PASSWORD` e `DB_NAME`.
+1. Instale as dependências:
+   ```bash
+   npm install
+   ```
 
-Inicie o servidor de desenvolvimento:
+2. Configure as variáveis de ambiente baseando-se no arquivo `.env.example`. Crie o arquivo `.env`:
+   ```env
+   DB_HOST=127.0.0.1
+   DB_PORT=3307
+   DB_NAME=fleet_control
+   DB_USER=app_user
+   DB_PASSWORD=change-me
 
-```bash
-npm run dev
-```
+   API_PORT=3333
+   VITE_API_BASE_URL=/api
+   JWT_SECRET=change-this-dev-secret
+   JWT_EXPIRES_IN=8h
+   CORPORATE_EMAIL_DOMAIN=@empresa.com.br
+   VITE_CORPORATE_EMAIL_DOMAIN=@empresa.com.br
 
-Esse comando sobe dois processos:
+   DB_ADMIN_USER=root
+   DB_ADMIN_PASSWORD=
+   ```
 
-- API local em `http://127.0.0.1:3333`
-- Frontend Vite em `http://localhost:5173`
+3. Prepare o banco de dados e popule com dados iniciais:
+   ```bash
+   npm run db:apply
+   ```
+   *Nota: O script `db:apply` executa a criação do banco, schema e seed dos dados de desenvolvimento localizados na pasta `db/sql/`.*
 
-## Usuarios de desenvolvimento
+4. Inicie o servidor de desenvolvimento:
+   ```bash
+   npm run dev
+   ```
+   Isso iniciará simultaneamente a API em `http://127.0.0.1:3333` e o frontend em `http://localhost:5173`.
 
-Os usuarios abaixo sao criados por `db/sql/002_seed_dev.sql`. Todos usam a senha de desenvolvimento:
+## Usuários de Desenvolvimento
 
-```text
-Senha@123
-```
+Os usuários abaixo são criados via script de seed com a senha padrão `Senha@123`:
 
-- Funcionario: `ricardo@empresa.com.br`
+- Funcionário: `ricardo@empresa.com.br`
 - Gestor: `patricia@empresa.com.br`
 - Admin: `admin@empresa.com.br`
 
-As senhas sao armazenadas no banco apenas como hash bcrypt no campo `users.password_hash`.
+Para testar a redefinição de senhas, entre como administrador, edite um usuário e preencha o campo "Nova senha".
 
-## Scripts
+## Configurações Globais da Aplicação
 
-```bash
-npm run dev
-npm run dev:api
-npm run dev:web
-npm run build
-npm run preview
-npm run db:apply
-npm run db:schema
-npm run db:seed
-```
+As configurações globais do sistema estão armazenadas na tabela `app_settings` e podem ser editadas pelo administrador:
 
-Observacao: o script `npm run lint` esta reservado no `package.json`, mas a configuracao ESLint ainda nao foi adicionada.
+- `employees_can_see_in_use_vehicles`: Define se funcionários podem ver os veículos que estão atualmente em uso por outras pessoas.
+- `corporate_email_domain`: Domínio exigido no cadastro e exibido no login.
+- `footer_brand_label`: Texto exibido no rodapé do sistema.
 
-## Banco MariaDB de desenvolvimento
-
-O projeto consegue preparar e popular uma instancia MariaDB ja existente. A aplicacao nao sobe o MariaDB sozinha nesta fase, mas fornece scripts para criar o banco, criar tabelas e inserir dados iniciais.
-
-Configure a conexao no `.env` antes de executar os comandos. Use `.env.example` como referencia e mantenha credenciais reais fora do Git.
-
-Os scripts SQL oficiais ficam em:
-
-```text
-db/sql/
-  000_create_database.sql
-  001_create_schema.sql
-  002_seed_dev.sql
-```
-
-Para configurar tudo pelo app/script npm:
+## Scripts Disponíveis
 
 ```bash
-npm run db:apply
+npm run dev        # Roda frontend e API simultaneamente
+npm run dev:api    # Roda apenas a API Node
+npm run dev:web    # Roda apenas o frontend Vite
+npm run build      # Faz o build do frontend para producao
+npm run preview    # Roda o servidor de preview do frontend
+npm run db:apply   # Cria banco, schema e insere dados iniciais
+npm run db:schema  # Aplica apenas o schema (tabelas)
+npm run db:seed    # Insere apenas os dados de desenvolvimento (fixtures)
 ```
 
-Se o banco ja existe e o schema ja foi aplicado, rode apenas uma etapa especifica:
+## Referência Visual
 
-```bash
-npm run db:schema
-npm run db:seed
-```
+O layout foca em uma interface operacional eficiente com tabelas densas, formulários limpos, paleta de cores azul/slate e usabilidade totalmente responsiva.
 
-Para resetar os dados de desenvolvimento, execute `npm run db:seed` novamente. Os inserts usam IDs fixos e `ON DUPLICATE KEY UPDATE`.
+## Futuras Funcionalidades (Roadmap)
 
-Detalhes operacionais de ambiente ficam documentados em `docs/database-dev.md`. A pasta `docs/` esta ignorada pelo Git.
+Os próximos passos para evolução da arquitetura do sistema incluem:
 
-## Mocks e fixtures
-
-O runtime da aplicacao nao depende de `src/data/mock/*` nem possui fallback para dados mockados quando a API falha. Fixtures antigas de desenvolvimento devem ficar apenas em `src/dev/fixtures` ou `src/test/fixtures`, sem import em codigo de producao.
-
-## Docker futuramente
-
-Ainda nao existe `Dockerfile` nem `docker-compose.yml` neste MVP. Quando a aplicacao entrar na etapa de containerizacao, o fluxo esperado sera:
-
-1. Criar um `Dockerfile` para empacotar frontend e API Node/Express.
-2. Criar um `docker-compose.yml` para subir app e MariaDB quando necessario.
-3. Passar configuracoes por um arquivo `.env` informado ao Docker ou pelo ambiente do host.
-4. Usar variaveis de ambiente, sem senhas reais hardcoded.
-5. Executar:
-
-```bash
-docker compose up -d --build
-```
-
-## Documentacao local
-
-- `docs/prompt.md`: escopo original do MVP.
-- `docs/status-mvp.md`: status da primeira entrega.
-- `docs/status2-mvp.md`: evolucao com MariaDB, configuracao admin e ajustes de layout.
-- `docs/layout-review-stitch.md`: revisao do layout com base no Stitch.
-- `docs/database-dev.md`: dados da instancia MariaDB de desenvolvimento.
-- `docs/botao-detalhes-dashboard.md`: decisao sobre o botao de detalhes no dashboard.
-
-## Referencia visual
-
-O layout segue os modelos gerados no Stitch em `stitch/corporate-fleet-control-system/`, com foco em interface operacional, tabelas densas, formularios claros, paleta azul/slate e experiencia responsiva.
+1. **Testes Automatizados**: Implementação de testes automatizados na API utilizando Jest/Supertest, cobrindo as rotas principais, autenticação e regras de negócio de retirada/devolução.
+2. **Containerização (Docker)**:
+   - Criação de `Dockerfile` para o frontend e API.
+   - Orquestração com `docker-compose.yml` para facilitar a inicialização do ambiente local (App + MariaDB) através de containers.
+3. **Migrations Automatizadas**: Substituição dos scripts manuais de banco (`db/sql`) por uma ferramenta de migrations (como Knex ou Prisma) para gerenciar o esquema do banco de forma mais robusta.

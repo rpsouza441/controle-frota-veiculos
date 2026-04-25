@@ -148,7 +148,6 @@ export function LoginPage() {
           <label className="field login-field">
             <span className="login-label-row">
               <span>SENHA</span>
-              <a href="#" onClick={(event) => event.preventDefault()}>ESQUECI A SENHA</a>
             </span>
             <span className="input-icon-wrap">
               <span className="input-icon input-icon-svg">
