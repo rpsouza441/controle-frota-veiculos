@@ -103,6 +103,23 @@ function newId(prefix) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
+function apiLog(level, event, details = {}) {
+  const payload = Object.entries(details).reduce((acc, [key, value]) => {
+    if (value !== undefined && value !== null && value !== "") acc[key] = value;
+    return acc;
+  }, {});
+  const line = `[fleet-api] ${event}`;
+  if (level === "error") {
+    console.error(line, payload);
+    return;
+  }
+  if (level === "warn") {
+    console.warn(line, payload);
+    return;
+  }
+  console.log(line, payload);
+}
+
 function toIsoMinute(value) {
   if (!value) return undefined;
   const date = value instanceof Date ? value : new Date(value);
@@ -201,6 +218,7 @@ async function addAuditLog(connection, actorUserId, action, entity, summary) {
      VALUES (?, UTC_TIMESTAMP(), ?, ?, ?, ?)`,
     [newId("audit"), actorUserId, action, entity, summary],
   );
+  apiLog("info", "audit.event", { actorUserId, action, entity, summary });
 }
 
 async function getFleetState() {
@@ -305,11 +323,20 @@ app.post("/api/auth/login", async (req, res, next) => {
         [email],
       );
       const user = rows[0];
-      if (!user || !toBool(user.active)) return res.status(401).json({ message: "Credenciais invalidas." });
-      if (!user.passwordHash) return res.status(401).json({ message: "Senha nao configurada para este usuario." });
+      if (!user || !toBool(user.active)) {
+        apiLog("warn", "auth.login_failed", { email, reason: "invalid_or_inactive_user" });
+        return res.status(401).json({ message: "Credenciais invalidas." });
+      }
+      if (!user.passwordHash) {
+        apiLog("warn", "auth.login_failed", { email, userId: user.id, reason: "missing_password_hash" });
+        return res.status(401).json({ message: "Senha nao configurada para este usuario." });
+      }
 
       const validPassword = await bcrypt.compare(password, user.passwordHash);
-      if (!validPassword) return res.status(401).json({ message: "Credenciais invalidas." });
+      if (!validPassword) {
+        apiLog("warn", "auth.login_failed", { email, userId: user.id, reason: "invalid_password" });
+        return res.status(401).json({ message: "Credenciais invalidas." });
+      }
 
       const safeUser = publicUser(user);
       const token = jwt.sign({ sub: safeUser.id, role: safeUser.role, email: safeUser.email }, jwtSecret, { expiresIn: jwtExpiresIn });
@@ -379,6 +406,13 @@ app.post("/api/usages/withdrawals", requireAuth, async (req, res, next) => {
       }
       await connection.execute("UPDATE vehicles SET status = 'EM_USO' WHERE id = ?", [input.vehicleId]);
       await addAuditLog(connection, input.userId, "VEHICLE_WITHDRAWAL", "VehicleUsage", `Retirada do veiculo ${vehicle.plate} com KM ${input.withdrawalKm}.`);
+      apiLog("info", "usage.withdrawal_created", {
+        actorUserId: input.userId,
+        usageId,
+        vehicleId: input.vehicleId,
+        plate: vehicle.plate,
+        withdrawalKm: input.withdrawalKm,
+      });
     });
     res.status(201).json({ ok: true });
   } catch (error) {
@@ -414,6 +448,13 @@ app.post("/api/usages/:id/return", requireAuth, async (req, res, next) => {
       await connection.execute("UPDATE vehicles SET current_km = ?, status = 'DISPONIVEL' WHERE id = ? AND active = TRUE", [returnKm, usage.vehicle_id]);
       const [vehicleRows] = await connection.execute("SELECT plate FROM vehicles WHERE id = ?", [usage.vehicle_id]);
       await addAuditLog(connection, req.user.id, "VEHICLE_RETURN", "VehicleUsage", `Devolucao do veiculo ${vehicleRows[0]?.plate ?? usage.vehicle_id} com KM ${returnKm}.`);
+      apiLog("info", "usage.return_created", {
+        actorUserId: req.user.id,
+        usageId: req.params.id,
+        vehicleId: usage.vehicle_id,
+        plate: vehicleRows[0]?.plate,
+        returnKm,
+      });
     });
     res.json({ ok: true });
   } catch (error) {
@@ -432,6 +473,12 @@ app.post("/api/corrections", requireAuth, async (req, res, next) => {
         [newId("corr"), input.vehicleId, input.requestedByUserId, input.informedKm, input.systemKm, input.reason],
       );
       await addAuditLog(connection, input.requestedByUserId, "ODOMETER_CORRECTION_REQUEST", "OdometerCorrectionRequest", `Solicitacao de correcao de KM: sistema ${input.systemKm}, informado ${input.informedKm}.`);
+      apiLog("info", "correction.request_created", {
+        actorUserId: input.requestedByUserId,
+        vehicleId: input.vehicleId,
+        systemKm: input.systemKm,
+        informedKm: input.informedKm,
+      });
     });
     res.status(201).json({ ok: true });
   } catch (error) {
@@ -463,6 +510,13 @@ app.post("/api/corrections/:id/review", requireAuth, requireRole(["MANAGER", "AD
         await connection.execute("UPDATE vehicles SET current_km = ? WHERE id = ?", [request.informed_km, request.vehicle_id]);
       }
       await addAuditLog(connection, reviewerId, "ODOMETER_CORRECTION_REVIEW", "OdometerCorrectionRequest", `Solicitacao ${String(status).toLowerCase()} para KM ${request.informed_km}.`);
+      apiLog("info", "correction.request_reviewed", {
+        actorUserId: reviewerId,
+        requestId: req.params.id,
+        vehicleId: request.vehicle_id,
+        status,
+        informedKm: request.informed_km,
+      });
     });
     res.json({ ok: true });
   } catch (error) {
@@ -480,9 +534,16 @@ app.put("/api/vehicles/:id", requireAuth, requireRole(["ADMIN"]), async (req, re
         `INSERT INTO vehicles (id, plate, model, current_km, team_id, status, active)
          VALUES (?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE plate = VALUES(plate), model = VALUES(model), current_km = VALUES(current_km),
-           team_id = VALUES(team_id), status = VALUES(status), active = VALUES(active)`,
+          team_id = VALUES(team_id), status = VALUES(status), active = VALUES(active)`,
         [vehicle.id, vehicle.plate, vehicle.model, vehicle.currentKm, vehicle.teamId, status, vehicle.active],
       );
+    });
+    apiLog("info", "crud.vehicle_upsert", {
+      actorUserId: req.user.id,
+      vehicleId: vehicle.id,
+      plate: vehicle.plate,
+      status,
+      active: vehicle.active,
     });
     res.json({ ok: true });
   } catch (error) {
@@ -515,6 +576,7 @@ app.put("/api/users/:id", requireAuth, requireRole(["ADMIN"]), async (req, res, 
         [user.name, user.email, user.role, user.teamId, user.active, user.id],
       );
     }
+    apiLog("info", "crud.user_upsert", { actorUserId: req.user.id, userId: user.id, email: user.email, role: user.role, active: user.active });
     res.json({ ok: true });
   } catch (error) {
     next(error);
@@ -530,6 +592,7 @@ app.put("/api/clients/:id", requireAuth, requireRole(["ADMIN"]), async (req, res
        ON DUPLICATE KEY UPDATE name = VALUES(name), active = VALUES(active)`,
       [client.id, client.name, client.active],
     );
+    apiLog("info", "crud.client_upsert", { actorUserId: req.user.id, clientId: client.id, name: client.name, active: client.active });
     res.json({ ok: true });
   } catch (error) {
     next(error);
@@ -547,6 +610,10 @@ app.put("/api/settings", requireAuth, requireRole(["ADMIN"]), async (req, res, n
         [settings.employeesCanSeeInUseVehicles ? "true" : "false", actorUserId],
       );
       await addAuditLog(connection, actorUserId, "SETTINGS_UPDATE", "AppSettings", `Configuracoes atualizadas: funcionarios ${settings.employeesCanSeeInUseVehicles ? "podem" : "nao podem"} ver veiculos em uso.`);
+      apiLog("info", "crud.settings_update", {
+        actorUserId,
+        employeesCanSeeInUseVehicles: settings.employeesCanSeeInUseVehicles,
+      });
     });
     res.json({ ok: true });
   } catch (error) {
@@ -555,6 +622,11 @@ app.put("/api/settings", requireAuth, requireRole(["ADMIN"]), async (req, res, n
 });
 
 app.use((error, _req, res, _next) => {
+  apiLog("error", "request.error", {
+    status: error.status || 500,
+    code: error.code,
+    message: error.message || "Erro interno da API.",
+  });
   if (error.code === "ER_DUP_ENTRY") {
     return res.status(409).json({ message: "Registro duplicado." });
   }
