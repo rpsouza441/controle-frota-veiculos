@@ -10,6 +10,7 @@ export const dbConfig = {
   waitForConnections: true,
   connectionLimit: 10,
   namedPlaceholders: true,
+  timezone: "Z",
 };
 
 export const pool = mysql.createPool(dbConfig);
