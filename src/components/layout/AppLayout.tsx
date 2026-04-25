@@ -18,9 +18,10 @@ const navItems: Array<{ to: string; label: string; roles: UserRole[] }> = [
 
 export function AppLayout() {
   const { user, logout } = useAuth();
-  const { error, refresh } = useFleet();
+  const { error, refresh, state } = useFleet();
   const navigate = useNavigate();
   const visibleItems = navItems.filter((item) => user && item.roles.includes(user.role));
+  const footerBrandLabel = state.settings.footerBrandLabel || "Espaço para sua marca";
 
   return (
     <div className="app-shell">
@@ -56,7 +57,7 @@ export function AppLayout() {
       </div>
       <footer className="app-footer">
         <span>FleetManager</span>
-        <strong>Espaço para sua marca</strong>
+        <strong>{footerBrandLabel}</strong>
       </footer>
     </div>
   );
