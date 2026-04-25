@@ -107,6 +107,32 @@ Os perfis de acesso do sistema são os seguintes:
    ```
    Isso iniciará simultaneamente a API em `http://127.0.0.1:3333` e o frontend em `http://localhost:5173`.
 
+## Executando via Docker (Produção Local)
+
+A aplicação conta com configurações completas para orquestração via Docker Compose.
+
+1. Acesse o diretório docker:
+   ```bash
+   cd docker
+   ```
+
+2. Crie seu arquivo de ambiente copiando o exemplo e ajustando as credenciais (veja as instruções dentro do arquivo para gerar hashes de segurança):
+   ```bash
+   cp .env.example .env
+   ```
+
+3. Suba os containers da aplicação e do banco de dados:
+   ```bash
+   docker compose --env-file .env up -d --build
+   ```
+
+4. *Na primeira execução*, popule o banco de dados via container:
+   ```bash
+   docker compose exec app npm run db:apply
+   ```
+
+A API e o frontend estarão acessíveis na porta `3333` (`http://localhost:3333`).
+
 ## Usuários de Desenvolvimento
 
 Os usuários abaixo são criados via script de seed com a senha padrão `Senha@123`:
@@ -147,7 +173,4 @@ O layout foca em uma interface operacional eficiente com tabelas densas, formul�
 Os próximos passos para evolução da arquitetura do sistema incluem:
 
 1. **Testes Automatizados**: Implementação de testes automatizados na API utilizando Jest/Supertest, cobrindo as rotas principais, autenticação e regras de negócio de retirada/devolução.
-2. **Containerização (Docker)**:
-   - Criação de `Dockerfile` para o frontend e API.
-   - Orquestração com `docker-compose.yml` para facilitar a inicialização do ambiente local (App + MariaDB) através de containers.
-3. **Migrations Automatizadas**: Substituição dos scripts manuais de banco (`db/sql`) por uma ferramenta de migrations (como Knex ou Prisma) para gerenciar o esquema do banco de forma mais robusta.
+2. **Migrations Automatizadas**: Substituição dos scripts manuais de banco (`db/sql`) por uma ferramenta de migrations (como Knex ou Prisma) para gerenciar o esquema do banco de forma mais robusta.
