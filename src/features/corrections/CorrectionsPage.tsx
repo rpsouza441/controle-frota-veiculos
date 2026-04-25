@@ -1,5 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { DataTable } from "../../components/tables/DataTable";
@@ -12,6 +12,18 @@ import { useAuth } from "../auth/AuthContext";
 export function CorrectionsPage() {
   const fleet = useFleet();
   const { user } = useAuth();
+  const [processingId, setProcessingId] = useState<{ id: string; action: "APROVADA" | "REJEITADA" } | null>(null);
+
+  const handleReview = async (id: string, action: "APROVADA" | "REJEITADA", userId: string) => {
+    try {
+      setProcessingId({ id, action });
+      await fleet.reviewCorrectionRequest(id, action, userId);
+    } catch (error: any) {
+      alert(error instanceof Error ? error.message : "Esta solicitação já foi processada ou não está mais pendente.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
   const columns = useMemo<ColumnDef<OdometerCorrectionRequest>[]>(
     () => [
@@ -31,16 +43,33 @@ export function CorrectionsPage() {
       },
       {
         header: "Ações",
-        cell: ({ row }) =>
-          row.original.status === "PENDENTE" ? (
+        cell: ({ row }) => {
+          if (row.original.status !== "PENDENTE") return "-";
+          
+          const isProcessingThisRow = processingId?.id === row.original.id;
+
+          return (
             <div className="row-actions">
-              <Button variant="secondary" onClick={() => user && fleet.reviewCorrectionRequest(row.original.id, "APROVADA", user.id)}>Aprovar</Button>
-              <Button variant="danger" onClick={() => user && fleet.reviewCorrectionRequest(row.original.id, "REJEITADA", user.id)}>Rejeitar</Button>
+              <Button 
+                variant="secondary" 
+                disabled={isProcessingThisRow}
+                onClick={() => user && handleReview(row.original.id, "APROVADA", user.id)}
+              >
+                {isProcessingThisRow && processingId.action === "APROVADA" ? "Salvando..." : "Aprovar"}
+              </Button>
+              <Button 
+                variant="danger" 
+                disabled={isProcessingThisRow}
+                onClick={() => user && handleReview(row.original.id, "REJEITADA", user.id)}
+              >
+                {isProcessingThisRow && processingId.action === "REJEITADA" ? "Salvando..." : "Rejeitar"}
+              </Button>
             </div>
-          ) : "-",
+          );
+        },
       },
     ],
-    [fleet, user],
+    [fleet, user, processingId],
   );
 
   return (
