@@ -16,9 +16,11 @@ export function WithdrawalPage() {
   const { user } = useAuth();
   const fleet = useFleet();
   const [kmMismatch, setKmMismatch] = useState<{ vehicleId: string; informedKm: number; systemKm: number } | null>(null);
+  const [correctionRequested, setCorrectionRequested] = useState(false);
   const vehicles = fleet.state.vehicles.filter(isVehicleAvailable);
   const selectedVehicle = fleet.state.vehicles.find((vehicle) => vehicle.id === vehicleId) ?? vehicles[0];
   const suggestions = useMemo(() => fleet.state.clients.filter((client) => client.active).map((client) => client.name), [fleet.state.clients]);
+
   const withdrawalForm = useForm<WithdrawalFormData>({
     resolver: zodResolver(withdrawalSchema),
     defaultValues: {
@@ -31,9 +33,15 @@ export function WithdrawalPage() {
       purpose: "",
     },
   });
+
   const correctionForm = useForm<CorrectionFormData>({
     resolver: zodResolver(correctionSchema),
-    defaultValues: { vehicleId: selectedVehicle?.id ?? "", informedKm: selectedVehicle?.currentKm ?? 0, systemKm: selectedVehicle?.currentKm ?? 0, reason: "" },
+    defaultValues: {
+      vehicleId: selectedVehicle?.id ?? "",
+      informedKm: selectedVehicle?.currentKm ?? 0,
+      systemKm: selectedVehicle?.currentKm ?? 0,
+      reason: "",
+    },
   });
 
   useEffect(() => {
@@ -48,9 +56,11 @@ export function WithdrawalPage() {
     if (!vehicle || !user) return;
     if (data.withdrawalKm !== vehicle.currentKm) {
       setKmMismatch({ vehicleId: vehicle.id, informedKm: data.withdrawalKm, systemKm: vehicle.currentKm });
+      setCorrectionRequested(false);
       correctionForm.reset({ vehicleId: vehicle.id, informedKm: data.withdrawalKm, systemKm: vehicle.currentKm, reason: "" });
       return;
     }
+
     const clientNames = data.clientsText.split(",").map((client) => client.trim()).filter(Boolean);
     await fleet.createWithdrawal({
       vehicleId: data.vehicleId,
@@ -70,7 +80,7 @@ export function WithdrawalPage() {
   async function onCorrection(data: CorrectionFormData) {
     if (!user) return;
     await fleet.createCorrectionRequest({ ...data, requestedByUserId: user.id });
-    navigate("/");
+    setCorrectionRequested(true);
   }
 
   return (
@@ -79,6 +89,7 @@ export function WithdrawalPage() {
         <div><span className="eyebrow">Uso de veículo</span><h1>Retirada de veículo</h1></div>
         <Link to="/"><Button variant="secondary">Voltar</Button></Link>
       </section>
+
       <form className="panel form-grid" onSubmit={withdrawalForm.handleSubmit(onWithdrawal)}>
         <Field label="Veículo" error={withdrawalForm.formState.errors.vehicleId?.message}>
           <SelectInput {...withdrawalForm.register("vehicleId")}>
@@ -100,14 +111,29 @@ export function WithdrawalPage() {
         <Field label="Finalidade do uso" error={withdrawalForm.formState.errors.purpose?.message}><TextArea {...withdrawalForm.register("purpose")} /></Field>
         <Button type="submit">Confirmar retirada</Button>
       </form>
+
       {kmMismatch ? (
         <form className="panel form-grid" onSubmit={correctionForm.handleSubmit(onCorrection)}>
-          <div className="alert danger">A KM informada não bate com a KM atual do sistema. Solicite correção para um gestor/admin.</div>
-          <Field label="Veículo"><SelectInput {...correctionForm.register("vehicleId")}><option value={kmMismatch.vehicleId}>{fleet.state.vehicles.find((v) => v.id === kmMismatch.vehicleId)?.plate}</option></SelectInput></Field>
+          <div className="alert danger">
+            A KM informada não bate com a KM atual do sistema. A retirada foi bloqueada e só poderá continuar depois que um gestor/admin aprovar a correção do odômetro.
+          </div>
+          {correctionRequested ? (
+            <div className="alert info">
+              Solicitação enviada. Aguarde a aprovação em Correções de KM; depois disso, volte para retirar o veículo com a KM atualizada.
+            </div>
+          ) : null}
+          <Field label="Veículo">
+            <SelectInput {...correctionForm.register("vehicleId")}>
+              <option value={kmMismatch.vehicleId}>{fleet.state.vehicles.find((vehicle) => vehicle.id === kmMismatch.vehicleId)?.plate}</option>
+            </SelectInput>
+          </Field>
           <Field label="KM informada"><TextInput type="number" {...correctionForm.register("informedKm")} /></Field>
           <Field label="KM atual no sistema"><TextInput type="number" readOnly {...correctionForm.register("systemKm")} /></Field>
           <Field label="Motivo" error={correctionForm.formState.errors.reason?.message}><TextArea {...correctionForm.register("reason")} /></Field>
-          <Button type="submit" variant="secondary">Solicitar correção de KM</Button>
+          <Button type="submit" variant="secondary" disabled={correctionRequested || correctionForm.formState.isSubmitting}>
+            {correctionRequested ? "Solicitação enviada" : "Solicitar correção de KM"}
+          </Button>
+          {correctionRequested ? <Link to="/"><Button type="button">Voltar ao dashboard</Button></Link> : null}
         </form>
       ) : null}
     </div>
