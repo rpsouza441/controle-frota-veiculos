@@ -680,6 +680,32 @@ a { color: inherit; text-decoration: none; }
 .data-table tr:hover td { background: #f0f5fc; transition: background .1s ease; }
 .empty-cell { text-align: center; color: var(--secondary); padding: 28px !important; }
 .row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.vehicles-table .data-table th:last-child,
+.vehicles-table .data-table td:last-child {
+  width: 216px;
+  min-width: 216px;
+}
+.vehicles-table .data-table th:last-child {
+  text-align: left;
+}
+.vehicle-table-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 184px;
+  white-space: nowrap;
+}
+.vehicle-table-actions a {
+  display: inline-flex;
+  text-decoration: none;
+}
+.vehicle-table-actions .btn {
+  min-width: 82px;
+  justify-content: center;
+}
+.vehicle-table-actions .btn-primary {
+  min-width: 96px;
+}
 
 /* ---------------------------------------------------------------
    Settings page

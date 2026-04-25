@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
 import { Field, TextArea, TextInput } from "../../components/forms/FormField";
 import { useFleet } from "../../data/repositories/FleetContext";
@@ -11,14 +12,23 @@ import { useAuth } from "../auth/AuthContext";
 
 export function ReturnPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const fleet = useFleet();
-  const openUsage = user ? getOpenUsageForUser(fleet.state.usages, user.id) : undefined;
+  const requestedUsageId = searchParams.get("usageId");
+  const requestedUsage = fleet.state.usages.find((usage) => usage.id === requestedUsageId && usage.status === "ABERTO");
+  const ownOpenUsage = user ? getOpenUsageForUser(fleet.state.usages, user.id) : undefined;
+  const openUsage = user?.role === "ADMIN" && requestedUsage ? requestedUsage : ownOpenUsage;
   const vehicle = fleet.state.vehicles.find((item) => item.id === openUsage?.vehicleId);
+  const usageUser = fleet.state.users.find((item) => item.id === openUsage?.userId);
   const form = useForm<ReturnFormData>({
     resolver: zodResolver(returnSchema),
     defaultValues: { returnKm: openUsage?.withdrawalKm ?? vehicle?.currentKm ?? 0, returnAt: toInputDateTime(), returnNote: "" },
   });
+
+  useEffect(() => {
+    form.reset({ returnKm: openUsage?.withdrawalKm ?? vehicle?.currentKm ?? 0, returnAt: toInputDateTime(), returnNote: "" });
+  }, [form, openUsage, vehicle]);
 
   async function onSubmit(data: ReturnFormData) {
     if (!openUsage) return;
@@ -51,6 +61,7 @@ export function ReturnPage() {
       </section>
       <section className="panel usage-summary">
         <strong>{vehicle?.plate} - {vehicle?.model}</strong>
+        <span>Responsável: {usageUser?.name ?? "Usuário não encontrado"}</span>
         <span>Retirado em {formatDateTime(openUsage.withdrawalAt)} com KM {openUsage.withdrawalKm.toLocaleString("pt-BR")}</span>
         <span>Cliente(s): {openUsage.clientNames.join(", ")}</span>
       </section>
