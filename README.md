@@ -1,18 +1,29 @@
 # Controle de Frota de Veículos
 
-Sistema web para controle de retirada, devolução e auditoria de veículos corporativos. A arquitetura da aplicação é baseada em:
+Sistema web para controle de retirada, devolução e auditoria de veículos corporativos. A arquitetura atual é backend-agnostic no frontend e modular por camadas no backend:
 
 ```text
-Frontend React -> API Node/Express -> MariaDB
+Frontend React
+  -> application/usecases
+  -> domain/ports
+  -> infra/repositories/http | infra/repositories/local
+
+Backend atual HTTP:
+Express routes -> services -> repositories -> MariaDB
 ```
 
-O frontend React não conecta diretamente ao MariaDB. As credenciais de banco de dados e regras de negócio ficam centralizadas no backend, garantindo segurança e integridade das operações.
+O frontend React não depende diretamente de Express, MariaDB ou REST. Páginas e contextos consomem casos de uso e portas (`AuthRepository`, `FleetRepository`), e a implementação concreta é escolhida no bootstrap por `VITE_DATA_PROVIDER=http|local`. O provider padrão continua sendo HTTP para preservar o comportamento atual.
+
+O backend HTTP atual continua sendo Node/Express com MariaDB, mas foi separado em `routes`, `services`, `repositories`, `middleware` e `validation`, preservando os endpoints `/api/*` para compatibilidade.
 
 Este README é a fonte principal de verdade sobre a arquitetura, regras e estado atual do projeto.
 
 ## Estado Atual da Aplicação
 
 - Aplicação full-stack funcional com frontend React, API Node/Express e banco de dados MariaDB.
+- Frontend desacoplado do transporte por portas de domínio, casos de uso e adapters HTTP/local.
+- Provider local opcional com `localStorage` para execução sem API, via `VITE_DATA_PROVIDER=local`.
+- Backend Express modularizado em camadas (`server/routes`, `server/services`, `server/repositories`, `server/middleware`, `server/validation`).
 - Login seguro com senhas criptografadas em `bcrypt` e gerenciamento de sessão via tokens `JWT`.
 - Rotas sensíveis protegidas no backend por autenticação e controle de perfis (roles).
 - Validação rigorosa de dados de entrada na API utilizando `Zod`.
@@ -48,9 +59,39 @@ Os perfis de acesso do sistema são os seguintes:
 
 ## Decisões de Produto e Arquitetura
 
+- **Ports and Adapters no Frontend**: A UI depende de casos de uso e contratos de domínio, não de `fetch` direto. A implementação HTTP fica em `src/infra/repositories/http`, e a alternativa local em `src/infra/repositories/local`.
+- **Composição no Bootstrap**: `src/app/providers/dataProviderFactory.ts` decide qual provider injetar nos contextos. O default é `http`.
+- **Backend Modular Compatível**: A API Express foi organizada em camadas sem alterar o contrato REST existente.
 - **Exclusão Lógica**: A exclusão real de registros não é permitida no sistema. Para preservar o histórico de usos e logs de auditoria, utiliza-se a inativação de registros (`status`).
 - **Reset de Senha**: O reset de senhas por e-mail (esqueci minha senha) não está implementado na fase atual. A redefinição de senha é feita manualmente por um administrador na tela de gestão de usuários.
 - **Permissões Acopladas**: As roles (`EMPLOYEE`, `MANAGER`, `ADMIN`) são fixas e suas permissões estão acopladas diretamente no código da API e do frontend.
+
+## Estrutura de Arquitetura
+
+```text
+src/
+  app/providers/                 # composicao e escolha de data provider
+  application/dto/                # DTOs internos de aplicacao
+  application/selectors/          # estado derivado e indices por id
+  application/usecases/           # casos de uso de auth e frota
+  domain/errors/                  # erros padronizados
+  domain/ports/                   # contratos AuthRepository e FleetRepository
+  infra/http/                     # cliente HTTP base
+  infra/repositories/http/        # adapters HTTP
+  infra/repositories/local/       # adapters locais/mock
+  features/                       # telas, contextos e componentes de fluxo
+
+server/
+  app.js                          # composicao Express
+  routes/                         # endpoints HTTP
+  services/                       # orquestracao transacional e regras de fluxo
+  repositories/                   # queries e persistencia
+  middleware/                     # auth, roles e erro
+  validation/                     # schemas Zod e helper validate
+  utils/                          # datas, ids, logs e normalizacoes
+```
+
+Mais detalhes e plano incremental ficam em `docs/backend-agnostic-refactor/README.md`.
 
 ## Regras de Negócio Importantes
 
@@ -86,6 +127,7 @@ Os perfis de acesso do sistema são os seguintes:
 
    API_PORT=3333
    VITE_API_BASE_URL=/api
+   VITE_DATA_PROVIDER=http
    JWT_SECRET=change-this-dev-secret
    JWT_EXPIRES_IN=8h
    CORPORATE_EMAIL_DOMAIN=@empresa.com.br
@@ -106,6 +148,8 @@ Os perfis de acesso do sistema são os seguintes:
    npm run dev
    ```
    Isso iniciará simultaneamente a API em `http://127.0.0.1:3333` e o frontend em `http://localhost:5173`.
+
+Para rodar o frontend sem backend, use `VITE_DATA_PROVIDER=local`. Esse modo usa dados locais em `localStorage` e fixtures de desenvolvimento, indicado para testes manuais e evolução de UI.
 
 ## Executando via Docker (Produção Local)
 
@@ -172,5 +216,6 @@ O layout foca em uma interface operacional eficiente com tabelas densas, formul�
 
 Os próximos passos para evolução da arquitetura do sistema incluem:
 
-1. **Testes Automatizados**: Implementação de testes automatizados na API utilizando Jest/Supertest, cobrindo as rotas principais, autenticação e regras de negócio de retirada/devolução.
+1. **Testes Automatizados**: Implementação de Vitest para use-cases e testes de contrato dos repositories; na API, smoke tests das rotas críticas.
 2. **Migrations Automatizadas**: Substituição dos scripts manuais de banco (`db/sql`) por uma ferramenta de migrations (como Knex ou Prisma) para gerenciar o esquema do banco de forma mais robusta.
+3. **Múltiplos Backends**: Adicionar novos adapters para BaaS, SDK externo ou local-first sem alterar páginas/componentes.

@@ -5,7 +5,9 @@ dist/
 !.env.example
 
 stitch/
-docs/
+docs/*
+!docs/backend-agnostic-refactor/
+!docs/backend-agnostic-refactor/**
 
 *.log
 *.tsbuildinfo
