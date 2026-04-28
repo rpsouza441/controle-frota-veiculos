@@ -1,17 +1,17 @@
 import { Link } from "react-router-dom";
 import { useFleet } from "../../data/repositories/FleetContext";
 import { useAuth } from "../auth/AuthContext";
-import { getOpenUsageForUser, getOpenUsageForVehicle, isVehicleAvailable } from "../../domain/rules/fleetRules";
+import { getOpenUsageForVehicle, isVehicleAvailable } from "../../domain/rules/fleetRules";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { vehicleStatusLabels } from "../../utils/labels";
 import { formatDateTime } from "../../services/date/format";
 
 export function DashboardPage() {
-  const { state } = useFleet();
+  const { indexes, state } = useFleet();
   const { user } = useAuth();
-  const openUsage = user ? getOpenUsageForUser(state.usages, user.id) : undefined;
-  const openUsageVehicle = openUsage ? state.vehicles.find((vehicle) => vehicle.id === openUsage.vehicleId) : undefined;
+  const openUsage = user ? indexes.openUsagesByUserId.get(user.id) : undefined;
+  const openUsageVehicle = openUsage ? indexes.vehiclesById.get(openUsage.vehicleId) : undefined;
   const availableVehicles = state.vehicles.filter(isVehicleAvailable);
   const todayLabel = new Intl.DateTimeFormat("pt-BR", {
     weekday: "long",
@@ -48,14 +48,14 @@ export function DashboardPage() {
   const monthlyProgress = Math.min(100, Math.round((monthlyKm / 600) * 100));
 
   function getInUseUserName(vehicleId: string): string | undefined {
-    const usage = getOpenUsageForVehicle(state.usages, vehicleId);
+    const usage = indexes.openUsagesByVehicleId.get(vehicleId) ?? getOpenUsageForVehicle(state.usages, vehicleId);
     if (!usage) return undefined;
-    const usageUser = state.users.find((u) => u.id === usage.userId);
+    const usageUser = indexes.usersById.get(usage.userId);
     return usageUser?.name;
   }
 
   function getVehicleLabel(vehicleId: string) {
-    const vehicle = state.vehicles.find((item) => item.id === vehicleId);
+    const vehicle = indexes.vehiclesById.get(vehicleId);
     return vehicle ? `${vehicle.model} - ${vehicle.plate}` : "Veículo não encontrado";
   }
 
@@ -111,7 +111,7 @@ export function DashboardPage() {
 
           <div className="grid-cards vehicle-dashboard-grid">
             {visibleVehicles.map((vehicle) => {
-              const team = state.teams.find((item) => item.id === vehicle.teamId);
+              const team = indexes.teamsById.get(vehicle.teamId);
               const canWithdraw = isVehicleAvailable(vehicle) && !openUsage;
               const inUseByName = vehicle.status === "EM_USO" ? getInUseUserName(vehicle.id) : undefined;
               return (

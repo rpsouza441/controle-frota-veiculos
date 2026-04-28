@@ -10,13 +10,13 @@ import { exportCsv } from "../../services/csv/exportCsv";
 import { usageStatusLabels } from "../../utils/labels";
 
 export function HistoryPage() {
-  const { state } = useFleet();
+  const { indexes, state } = useFleet();
   const [filters, setFilters] = useState({ plate: "", employee: "", client: "", from: "", to: "" });
 
   const rows = useMemo(() => {
     return state.usages.filter((usage) => {
-      const vehicle = state.vehicles.find((item) => item.id === usage.vehicleId);
-      const user = state.users.find((item) => item.id === usage.userId);
+      const vehicle = indexes.vehiclesById.get(usage.vehicleId);
+      const user = indexes.usersById.get(usage.userId);
       const matchesPlate = !filters.plate || vehicle?.plate.toLowerCase().includes(filters.plate.toLowerCase());
       const matchesEmployee = !filters.employee || user?.name.toLowerCase().includes(filters.employee.toLowerCase());
       const matchesClient = !filters.client || usage.clientNames.join(", ").toLowerCase().includes(filters.client.toLowerCase());
@@ -25,14 +25,14 @@ export function HistoryPage() {
       const matchesTo = !filters.to || withdrawalDate <= new Date(filters.to);
       return matchesPlate && matchesEmployee && matchesClient && matchesFrom && matchesTo;
     });
-  }, [filters, state.usages, state.users, state.vehicles]);
+  }, [filters, indexes.usersById, indexes.vehiclesById, state.usages]);
 
   const columns = useMemo<ColumnDef<VehicleUsage>[]>(
     () => [
-      { header: "Placa", cell: ({ row }) => state.vehicles.find((vehicle) => vehicle.id === row.original.vehicleId)?.plate },
-      { header: "Modelo", cell: ({ row }) => state.vehicles.find((vehicle) => vehicle.id === row.original.vehicleId)?.model },
-      { header: "Funcionário", cell: ({ row }) => state.users.find((user) => user.id === row.original.userId)?.name },
-      { header: "Equipe", cell: ({ row }) => state.teams.find((team) => team.id === row.original.teamId)?.name },
+      { header: "Placa", cell: ({ row }) => indexes.vehiclesById.get(row.original.vehicleId)?.plate },
+      { header: "Modelo", cell: ({ row }) => indexes.vehiclesById.get(row.original.vehicleId)?.model },
+      { header: "Funcionário", cell: ({ row }) => indexes.usersById.get(row.original.userId)?.name },
+      { header: "Equipe", cell: ({ row }) => indexes.teamsById.get(row.original.teamId)?.name },
       { header: "Cliente(s)", accessorFn: (row) => row.clientNames.join(", ") },
       { header: "Origem", accessorKey: "origin" },
       { header: "Destino", accessorKey: "destination" },
@@ -42,16 +42,16 @@ export function HistoryPage() {
       { header: "Devolução", cell: ({ row }) => formatDateTime(row.original.returnAt) },
       { header: "Status", cell: ({ row }) => usageStatusLabels[row.original.status] },
     ],
-    [state.teams, state.users, state.vehicles],
+    [indexes.teamsById, indexes.usersById, indexes.vehiclesById],
   );
 
   function handleExport() {
     exportCsv(
       "historico-frota.csv",
       rows.map((usage) => {
-        const vehicle = state.vehicles.find((item) => item.id === usage.vehicleId);
-        const user = state.users.find((item) => item.id === usage.userId);
-        const team = state.teams.find((item) => item.id === usage.teamId);
+        const vehicle = indexes.vehiclesById.get(usage.vehicleId);
+        const user = indexes.usersById.get(usage.userId);
+        const team = indexes.teamsById.get(usage.teamId);
         return {
           Placa: vehicle?.plate,
           Modelo: vehicle?.model,
