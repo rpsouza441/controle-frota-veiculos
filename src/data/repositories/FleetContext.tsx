@@ -1,4 +1,14 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createFleetIndexes, FleetIndexes } from "../../application/selectors/fleetSelectors";
+import { addAuditLog as addAuditLogUseCase } from "../../application/usecases/fleet/addAuditLog";
+import { closeUsage as closeUsageUseCase } from "../../application/usecases/fleet/closeUsage";
+import { createWithdrawal as createWithdrawalUseCase } from "../../application/usecases/fleet/createWithdrawal";
+import { getFleetState } from "../../application/usecases/fleet/getFleetState";
+import { requestCorrection as requestCorrectionUseCase } from "../../application/usecases/fleet/requestCorrection";
+import { reviewCorrection as reviewCorrectionUseCase } from "../../application/usecases/fleet/reviewCorrection";
+import { updateSettings as updateSettingsUseCase } from "../../application/usecases/fleet/updateSettings";
+import { upsertClient as upsertClientUseCase, upsertTeam as upsertTeamUseCase, upsertUser as upsertUserUseCase, upsertVehicle as upsertVehicleUseCase } from "../../application/usecases/fleet/upserts";
+import { FleetRepository } from "../../domain/ports/FleetRepository";
 import {
   AuditAction,
   AppSettings,
@@ -15,6 +25,7 @@ import { authChangedEvent, getAuthToken } from "../../services/api/authToken";
 
 type FleetContextValue = {
   state: FleetState;
+  indexes: FleetIndexes;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -31,6 +42,10 @@ type FleetContextValue = {
   updateSettings: (settings: AppSettings, actorUserId: string) => Promise<AppSettings>;
 };
 
+type FleetProviderProps = PropsWithChildren<{
+  fleetRepository: FleetRepository;
+}>;
+
 const emptyFleetState: FleetState = {
   users: [],
   teams: [],
@@ -43,34 +58,12 @@ const emptyFleetState: FleetState = {
 };
 
 const FleetContext = createContext<FleetContextValue | null>(null);
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
-function newId(prefix: string) {
-  return `${prefix}-${crypto.randomUUID()}`;
-}
-
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getAuthToken();
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options?.headers,
-    },
-    ...options,
-  });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.message || "Falha na comunicação com a API.");
-  }
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
-}
-
-export function FleetProvider({ children }: PropsWithChildren) {
+export function FleetProvider({ fleetRepository, children }: FleetProviderProps) {
   const [state, setState] = useState<FleetState>(emptyFleetState);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const indexes = useMemo(() => createFleetIndexes(state), [state]);
 
   const refresh = useCallback(async () => {
     if (!getAuthToken()) {
@@ -82,13 +75,13 @@ export function FleetProvider({ children }: PropsWithChildren) {
     try {
       setLoading(true);
       setError(null);
-      setState(await request<FleetState>("/fleet-state"));
+      setState(await getFleetState(fleetRepository));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao carregar dados do banco.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fleetRepository]);
 
   useEffect(() => {
     void refresh();
@@ -99,99 +92,54 @@ export function FleetProvider({ children }: PropsWithChildren) {
   const value = useMemo<FleetContextValue>(
     () => ({
       state,
+      indexes,
       loading,
       error,
       refresh,
 
       async addAuditLog(actorUserId, action, entity, summary) {
-        await request("/audit-logs", {
-          method: "POST",
-          body: JSON.stringify({ actorUserId, action, entity, summary }),
-        });
+        await addAuditLogUseCase(fleetRepository, { actorUserId, action, entity, summary });
         await refresh();
       },
       async createWithdrawal(input) {
-        await request("/usages/withdrawals", {
-          method: "POST",
-          body: JSON.stringify({
-            ...input,
-            withdrawalAt: new Date(input.withdrawalAt).toISOString(),
-          }),
-        });
+        await createWithdrawalUseCase(fleetRepository, input);
         await refresh();
       },
       async closeUsage(usageId, returnKm, returnAt, returnNote) {
-        await request(`/usages/${usageId}/return`, {
-          method: "POST",
-          body: JSON.stringify({ 
-            returnKm, 
-            returnAt: new Date(returnAt).toISOString(), 
-            returnNote 
-          }),
-        });
+        await closeUsageUseCase(fleetRepository, { usageId, returnKm, returnAt, returnNote });
         await refresh();
       },
       async createCorrectionRequest(input) {
-        await request("/corrections", {
-          method: "POST",
-          body: JSON.stringify(input),
-        });
+        await requestCorrectionUseCase(fleetRepository, input);
         await refresh();
       },
       async reviewCorrectionRequest(requestId, status, reviewerId, note) {
-        await request(`/corrections/${requestId}/review`, {
-          method: "POST",
-          body: JSON.stringify({ status, reviewerId, note }),
-        });
+        await reviewCorrectionUseCase(fleetRepository, { requestId, status, reviewerId, note });
         await refresh();
       },
       async upsertVehicle(vehicle) {
-        const id = vehicle.id || newId("vehicle");
-        const status = vehicle.active ? (vehicle.status === "EM_USO" ? "EM_USO" : "DISPONIVEL") : "INATIVO";
-        await request(`/vehicles/${id}`, {
-          method: "PUT",
-          body: JSON.stringify({
-            ...vehicle,
-            id,
-            status,
-          }),
-        });
+        await upsertVehicleUseCase(fleetRepository, vehicle);
         await refresh();
       },
       async upsertUser(user) {
-        const id = user.id || newId("user");
-        await request(`/users/${id}`, {
-          method: "PUT",
-          body: JSON.stringify({ ...user, id }),
-        });
+        await upsertUserUseCase(fleetRepository, user);
         await refresh();
       },
       async upsertTeam(team) {
-        const id = team.id || newId("team");
-        await request(`/teams/${id}`, {
-          method: "PUT",
-          body: JSON.stringify({ ...team, id }),
-        });
+        await upsertTeamUseCase(fleetRepository, team);
         await refresh();
       },
       async upsertClient(client) {
-        const id = client.id || newId("client");
-        await request(`/clients/${id}`, {
-          method: "PUT",
-          body: JSON.stringify({ ...client, id }),
-        });
+        await upsertClientUseCase(fleetRepository, client);
         await refresh();
       },
       async updateSettings(settings, actorUserId) {
-        const response = await request<{ settings?: AppSettings }>("/settings", {
-          method: "PUT",
-          body: JSON.stringify({ settings, actorUserId }),
-        });
+        const response = await updateSettingsUseCase(fleetRepository, { settings, actorUserId });
         await refresh();
-        return response.settings ?? settings;
+        return response;
       },
     }),
-    [error, loading, refresh, state],
+    [error, fleetRepository, indexes, loading, refresh, state],
   );
 
   return <FleetContext.Provider value={value}>{children}</FleetContext.Provider>;

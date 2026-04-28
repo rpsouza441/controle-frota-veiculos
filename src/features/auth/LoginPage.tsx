@@ -6,14 +6,6 @@ import { loginSchema, LoginFormData } from "../../domain/schemas/authSchemas";
 import { CORPORATE_EMAIL_DOMAIN, normalizeCorporateEmailDomain } from "../../domain/rules/fleetRules";
 import { useAuth } from "./AuthContext";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
-
-async function fetchPublicSettings() {
-  const response = await fetch(`${API_BASE}/public-settings`);
-  if (!response.ok) return { corporateEmailDomain: CORPORATE_EMAIL_DOMAIN };
-  return response.json() as Promise<{ corporateEmailDomain: string }>;
-}
-
 function MailIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -56,6 +48,7 @@ function EyeOffIcon() {
 export function LoginPage() {
   const navigate = useNavigate();
   const auth = useAuth();
+  const { getPublicSettings } = auth;
   const [showPassword, setShowPassword] = useState(false);
   const [corporateEmailDomain, setCorporateEmailDomain] = useState(CORPORATE_EMAIL_DOMAIN);
   const { register, handleSubmit, formState, setError } = useForm<LoginFormData>({
@@ -65,7 +58,7 @@ export function LoginPage() {
 
   useEffect(() => {
     let active = true;
-    fetchPublicSettings()
+    getPublicSettings()
       .then((settings) => {
         if (active) setCorporateEmailDomain(normalizeCorporateEmailDomain(settings.corporateEmailDomain));
       })
@@ -75,7 +68,7 @@ export function LoginPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [getPublicSettings]);
 
   async function onSubmit(data: LoginFormData) {
     try {

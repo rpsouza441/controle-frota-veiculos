@@ -1,49 +1,31 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { getPublicSettings as getPublicSettingsUseCase } from "../../application/usecases/auth/getPublicSettings";
+import { login as loginUseCase } from "../../application/usecases/auth/login";
+import { logout as logoutUseCase } from "../../application/usecases/auth/logout";
+import { rehydrate as rehydrateUseCase } from "../../application/usecases/auth/rehydrate";
+import { AuthRepository, PublicSettings } from "../../domain/ports/AuthRepository";
 import { User } from "../../domain/types";
-import { authChangedEvent, clearAuthToken, getAuthToken, notifyAuthChanged, setAuthToken } from "../../services/api/authToken";
+import { clearAuthToken, getAuthToken, notifyAuthChanged, setAuthToken } from "../../services/api/authToken";
 
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  getPublicSettings: () => Promise<PublicSettings>;
 };
 
-type LoginResponse = {
-  token: string;
-  user: User;
-};
+type AuthProviderProps = PropsWithChildren<{
+  authRepository: AuthRepository;
+}>;
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
-async function loginWithPassword(email: string, password: string): Promise<LoginResponse> {
-  const response = await fetch(`${API_BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.message || "Falha no login.");
-  }
-  return response.json() as Promise<LoginResponse>;
-}
-
-async function fetchCurrentUser(token: string): Promise<User> {
-  const response = await fetch(`${API_BASE}/auth/me`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.message || "Sessao invalida.");
-  }
-  return response.json() as Promise<User>;
-}
-
-export function AuthProvider({ children }: PropsWithChildren) {
+export function AuthProvider({ authRepository, children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const getPublicSettings = useCallback(() => getPublicSettingsUseCase(authRepository), [authRepository]);
 
   const rehydrate = useCallback(async () => {
     const token = getAuthToken();
@@ -52,7 +34,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       return;
     }
     try {
-      const found = await fetchCurrentUser(token);
+      const found = await rehydrateUseCase(authRepository, token);
       setUser(found);
     } catch {
       clearAuthToken();
@@ -61,7 +43,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authRepository]);
 
   useEffect(() => {
     void rehydrate();
@@ -72,18 +54,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
       user,
       loading,
       async login(email, password) {
-        const { token, user: found } = await loginWithPassword(email, password);
+        const { token, user: found } = await loginUseCase(authRepository, { email, password });
         setAuthToken(token);
         setUser(found);
         notifyAuthChanged();
       },
       logout() {
-        clearAuthToken();
+        logoutUseCase(clearAuthToken);
         setUser(null);
         notifyAuthChanged();
       },
+      getPublicSettings,
     }),
-    [loading, user],
+    [authRepository, getPublicSettings, loading, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
