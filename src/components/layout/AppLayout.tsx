@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 import { UserRole } from "../../domain/types";
 import { roleLabels } from "../../utils/labels";
@@ -21,8 +22,32 @@ export function AppLayout() {
   const { user, logout } = useAuth();
   const { error, refresh, state } = useFleet();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const visibleItems = navItems.filter((item) => user && item.roles.includes(user.role));
   const footerBrandLabel = state.settings.footerBrandLabel || "Espaço para sua marca";
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileMenuOpen]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsMobileMenuOpen(false);
+    }
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isMobileMenuOpen]);
 
   return (
     <div className="app-shell">
@@ -31,6 +56,20 @@ export function AppLayout() {
           <strong className="brand">FleetManager</strong>
           <span className="topbar-subtitle">Controle de frota corporativa</span>
         </div>
+        <Button
+          type="button"
+          variant="ghost"
+          className="mobile-menu-toggle"
+          aria-label={isMobileMenuOpen ? "Fechar menu" : "Abrir menu"}
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="mobile-sidebar"
+          onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">
+            {isMobileMenuOpen ? "close" : "menu"}
+          </span>
+          Menu
+        </Button>
         <div className="topbar-user">
           <span>{user?.name}</span>
           <small>{user ? roleLabels[user.role] : ""}</small>
@@ -39,8 +78,16 @@ export function AppLayout() {
           </Button>
         </div>
       </header>
+      {isMobileMenuOpen ? (
+        <button
+          type="button"
+          className="mobile-drawer-overlay"
+          aria-label="Fechar menu"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      ) : null}
       <div className="shell-body">
-        <nav className="sidebar">
+        <nav id="mobile-sidebar" className={`sidebar ${isMobileMenuOpen ? "open" : ""}`}>
           {visibleItems.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.to === "/"}>
               {item.label}

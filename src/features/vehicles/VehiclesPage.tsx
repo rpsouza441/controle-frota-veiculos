@@ -97,7 +97,7 @@ export function VehiclesPage() {
   return (
     <div className="page-stack">
       <section className="page-heading"><div><span className="eyebrow">Admin</span><h1>Gestão de veículos</h1></div></section>
-      <form className="panel form-grid admin-form" onSubmit={form.handleSubmit(onSubmit)}>
+      <form className="panel form-grid admin-form vehicles-admin-form" onSubmit={form.handleSubmit(onSubmit)}>
         <Field label="Placa" error={form.formState.errors.plate?.message}><TextInput {...form.register("plate")} /></Field>
         <Field label="Modelo" error={form.formState.errors.model?.message}><TextInput {...form.register("model")} /></Field>
         <Field label="KM atual" error={form.formState.errors.currentKm?.message}><TextInput type="number" {...form.register("currentKm")} /></Field>
